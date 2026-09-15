@@ -1870,7 +1870,7 @@ const leafTexture = makeLeafTexture();
 // the leaf strands (not the trunk) by tinting the (otherwise white, i.e. untinted) sprite
 // colour towards turquoise, scaled by palette.fireflies so it's essentially untinted by day
 // and a faint cast once it's dark
-const leafTintColor = new THREE.Color(0xffffff).lerp(new THREE.Color(0x7fe8d8), palette.fireflies * 0.26);
+const leafTintColor = new THREE.Color(0xffffff).lerp(new THREE.Color(0x7fe8d8), palette.fireflies * 0.4);
 const leafMaterial = new THREE.SpriteMaterial({
   map: leafTexture, color: leafTintColor, transparent: true, depthWrite: false
 });
@@ -1977,16 +1977,16 @@ function buildStrand(tip, dropLen, addLantern, repo) {
     const orbGeo = new THREE.SphereGeometry(big ? 0.09 : 0.06, 16, 16);
     const orbColor = big ? 0xf0b878 : 0xe8b054;
     const orbMat = new THREE.MeshStandardMaterial({
-      color: orbColor, emissive: orbColor, emissiveIntensity: big ? 1.7 : 1.4, roughness: 0.4
+      color: orbColor, emissive: orbColor, emissiveIntensity: big ? 2.3 : 1.9, roughness: 0.4
     });
     const orb = new THREE.Mesh(orbGeo, orbMat);
     orb.position.copy(p);
     group.add(orb);
 
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glowTexture, transparent: true, depthWrite: false, opacity: 0.85, blending: THREE.AdditiveBlending
+      map: glowTexture, transparent: true, depthWrite: false, opacity: 1, blending: THREE.AdditiveBlending
     }));
-    const glowScale = big ? 0.85 : 0.55;
+    const glowScale = big ? 1.05 : 0.7;
     glow.scale.set(glowScale, glowScale, 1);
     glow.position.copy(p);
     group.add(glow);
@@ -2077,14 +2077,14 @@ function setHover(entry) {
     hovered.glow.material.opacity = 0.85;
     hovered.glow.scale.set(hovered.baseScale, hovered.baseScale, 1);
     hovered.label.material.opacity = 0;
-    hovered.orb.material.emissiveIntensity = 1.4;
+    hovered.orb.material.emissiveIntensity = hovered.repo.featured ? 2.3 : 1.9;
   }
   hovered = entry;
   if (hovered) {
     hovered.glow.material.opacity = 1;
     hovered.glow.scale.set(hovered.baseScale * 1.5, hovered.baseScale * 1.5, 1);
     hovered.label.material.opacity = 1;
-    hovered.orb.material.emissiveIntensity = hovered.repo.featured ? 2.7 : 2.4;
+    hovered.orb.material.emissiveIntensity = hovered.repo.featured ? 3.3 : 3.0;
     renderer.domElement.style.cursor = hovered.repo.url ? 'pointer' : 'default';
     tooltip.querySelector('.repo-name').textContent = hovered.repo.name;
     tooltip.querySelector('.repo-desc').textContent = hovered.repo.desc;
