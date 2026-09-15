@@ -979,9 +979,14 @@ const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').mat
 // even though the browser reports touch support
 // matchMedia('(hover: none) and (pointer: coarse)') is what actually distinguishes a
 // touch-primary phone/tablet from a laptop that merely has a touchscreen — checking just
-// maxTouchPoints/ontouchstart falsely flagged touch-capable laptops as mobile
-const IS_TOUCH = !location.search.includes('forceDesktop')
-  && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+// maxTouchPoints/ontouchstart falsely flagged touch-capable laptops as mobile. But some Samsung
+// phones (S-Pen hover support) report hover:hover even though the phone itself is touch-primary,
+// which that check alone misses and treats as a desktop — fall back to touch support combined
+// with a phone-sized viewport, since touch-capable laptops are rarely this narrow
+const IS_TOUCH = !location.search.includes('forceDesktop') && (
+  window.matchMedia('(hover: none) and (pointer: coarse)').matches
+  || (('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 900)
+);
 
 // ---------- time of day, matched to the visitor's own local clock ----------
 // new Date().getHours() is already local to whoever is viewing the page — no geolocation,
