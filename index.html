@@ -2101,6 +2101,10 @@ for (let i = 0; i < fireflyCount; i++) {
   fPos[i * 3 + 1] = moundHeightAt(x, z) + 0.8 + Math.random() * 9;
   fPos[i * 3 + 2] = z;
 }
+// where each firefly wanders around, not where it currently is — the animated position is
+// computed fresh each frame as base + offset, so the wander is a bounded loop rather than an
+// ever-accumulating drift that could carry a firefly arbitrarily far from where it spawned
+const fireflyBasePos = fPos.slice();
 fireflyGeo.setAttribute('position', new THREE.BufferAttribute(fPos, 3));
 
 // a yellow-green (not the lantern orbs' warm amber) plus real per-particle flicker via a
@@ -2477,8 +2481,13 @@ function animate() {
     const fp = fireflyGeo.attributes.position;
     const fc = fireflyGeo.attributes.color;
     for (let i = 0; i < fireflyCount; i++) {
-      fp.array[i * 3 + 1] += Math.sin(t * 0.5 + i) * 0.0015;
-      fp.array[i * 3] += Math.cos(t * 0.3 + i) * 0.0012;
+      const bx = fireflyBasePos[i * 3], by = fireflyBasePos[i * 3 + 1], bz = fireflyBasePos[i * 3 + 2];
+      // an actual wander loop around the spawn point (base + layered sines at different
+      // frequencies/phases per firefly), computed fresh each frame rather than accumulated —
+      // the previous version added a tiny delta every frame, which was barely visible
+      fp.array[i * 3] = bx + Math.sin(t * 0.35 + i) * 1.3 + Math.sin(t * 0.9 + i * 2.1) * 0.35;
+      fp.array[i * 3 + 1] = by + Math.sin(t * 0.5 + i * 1.7) * 0.7 + Math.cos(t * 0.22 + i) * 0.25;
+      fp.array[i * 3 + 2] = bz + Math.cos(t * 0.4 + i * 1.3) * 1.3 + Math.sin(t * 0.6 + i * 2.4) * 0.35;
       // per-firefly flicker, each on its own phase — real fireflies pulse individually rather
       // than glow at a constant brightness like the lantern orbs do
       const flicker = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 2.4 + fireflyPhase[i]));
