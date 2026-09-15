@@ -1614,15 +1614,9 @@ function makeGrassBladeGeometry() {
 }
 function scatterGrassBlades(count) {
   const bladeGeo = makeGrassBladeGeometry();
-  // fixed forest-green HSL rather than an offset from the ground's raw hex — a relative
-  // offset sends an already-dark ground colour (e.g. the night palette) toward black instead
-  // of a stable green
-  const groundHSL = { h: 0, s: 0, l: 0 };
-  palette.ground.getHSL(groundHSL);
-  const bladeColor = new THREE.Color().setHSL(groundHSL.h, 0.45, 0.22);
-  // MeshLambertMaterial (not Basic) so blades actually respond to the willow's shadow —
-  // an unlit material stays at full flat brightness even under the canopy's shadow, which
-  // is what read as "glowing" against the correctly-darkened, shadowed ground beneath it
+  // exact same colour as the ground, no offset — lit (not Basic) so it still shades and
+  // receives shadow the same way the ground does, instead of sitting at flat full brightness
+  const bladeColor = palette.ground.clone();
   const bladeMat = new THREE.MeshLambertMaterial({ color: bladeColor, side: THREE.DoubleSide });
   const mesh = new THREE.InstancedMesh(bladeGeo, bladeMat, count);
   mesh.receiveShadow = true;
