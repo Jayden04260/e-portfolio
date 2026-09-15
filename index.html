@@ -1622,8 +1622,8 @@ function scatterGrassBlades(count) {
     const angle = Math.random() * Math.PI * 2;
     const dist = Math.sqrt(Math.random()) * (VISUAL_GROUND_RADIUS - 3); // sqrt(random) for even coverage by area, not bunched at the centre — spans the whole visible ground, not just the walkable circle
     const x = Math.cos(angle) * dist, z = Math.sin(angle) * dist;
-    const bladeH = (0.18 + Math.random() * 0.28) * 0.25; // 3/4 shorter than before
-    const bladeW = 0.07 + Math.random() * 0.05;
+    const bladeH = (0.09 + Math.random() * 0.14) * 0.25; // half the previous height range
+    const bladeW = 0.035 + Math.random() * 0.025; // half the previous width range
     m.compose(
       // +0.03: the ground mesh linearly interpolates height between its own vertices, while
       // this samples the exact analytic curve — they disagree slightly between vertices,
@@ -1638,7 +1638,7 @@ function scatterGrassBlades(count) {
   mesh.instanceMatrix.needsUpdate = true;
   scene.add(mesh);
 }
-scatterGrassBlades(500000);
+scatterGrassBlades(750000);
 
 // ---------- near-distant forest: real trees a bit past the main grove, same as always ----------
 const NEAR_DISTANT_OUTER = 108;
