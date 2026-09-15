@@ -199,10 +199,10 @@
   /* temporary — shows live distance to the willow so we can pin down why the enter-radius
      never seems to trigger on touch. safe to remove once that's fixed. */
   #debugDist{
-    position:fixed; top:12px; right:12px; z-index:40; max-width:60vw;
-    font-family:'IBM Plex Mono', monospace; font-size:12px; line-height:1.5; color:#fff;
-    background:rgba(0,0,0,0.72); padding:8px 10px; border-radius:2px;
-    pointer-events:none; white-space:pre-line;
+    position:fixed; top:12px; right:12px; z-index:40; max-width:92vw; max-height:70vh; overflow:auto;
+    font-family:'IBM Plex Mono', monospace; font-size:11px; line-height:1.5; color:#fff;
+    background:rgba(0,0,0,0.78); padding:8px 10px; border-radius:2px;
+    pointer-events:none; white-space:pre-wrap; word-break:break-all;
   }
 
   /* ---------- 2D landing view (hybrid: 2D grid <-> 3D forest, laid out like the space site) ---------- */
@@ -2065,24 +2065,33 @@ function startCameraTween(endPos, endTarget, duration = 1100) {
   camTween = { startPos: camera.position.clone(), endPos, startTarget: controls.target.clone(), endTarget, t0: performance.now(), duration };
 }
 
+let lastEnterOrbitError = ''; // temporary debug
 function enterOrbitMode() {
   if (mode === 'orbit') return;
   mode = 'orbit';
-  flyControls.unlock();
-  lockPrompt.style.display = 'none';
-  controls.enabled = true;
-  hint.textContent = ORBIT_HINT;
-  leaveBtn.style.display = 'block';
-  joystickBase.style.display = 'none';
-  browseIndex = -1;
-  updateBrowseCount();
-  browseNav.style.display = 'flex';
-  const dir = camera.position.clone().setY(0);
-  if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
-  dir.normalize();
-  // step back from wherever we crossed the threshold to a framing that shows the whole tree,
-  // not just whatever's directly in front of us at the canopy's edge
-  startCameraTween(new THREE.Vector3(dir.x * 32, 11.5 + MOUND_HEIGHT, dir.z * 32), new THREE.Vector3(0, 7 + MOUND_HEIGHT, 0));
+  try {
+    flyControls.unlock();
+    lockPrompt.style.display = 'none';
+    controls.enabled = true;
+    hint.textContent = ORBIT_HINT;
+    leaveBtn.style.display = 'block';
+    joystickBase.style.display = 'none';
+    browseIndex = -1;
+    updateBrowseCount();
+    browseNav.style.display = 'flex';
+    // force an immediate reflow — some mobile browsers defer/coalesce a style change made
+    // mid-touch inside a rAF callback until something reads layout, leaving stale paint
+    void leaveBtn.offsetHeight; void joystickBase.offsetHeight; void browseNav.offsetHeight;
+    const dir = camera.position.clone().setY(0);
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
+    dir.normalize();
+    // step back from wherever we crossed the threshold to a framing that shows the whole tree,
+    // not just whatever's directly in front of us at the canopy's edge
+    startCameraTween(new THREE.Vector3(dir.x * 32, 11.5 + MOUND_HEIGHT, dir.z * 32), new THREE.Vector3(0, 7 + MOUND_HEIGHT, 0));
+  } catch (err) {
+    lastEnterOrbitError = String(err && err.stack || err);
+    console.error('enterOrbitMode failed:', err);
+  }
 }
 
 function exitOrbitMode() {
@@ -2107,6 +2116,10 @@ leaveBtn.addEventListener('click', exitOrbitMode);
 const browseNav = document.getElementById('browseNav');
 const browseCount = document.getElementById('browseCount');
 let browseIndex = -1;
+
+// temporary — exposes internals to the devtools console for direct testing without needing
+// to actually walk/touch anything
+window.__debug = { enterOrbitMode, exitOrbitMode, camera, mode: () => mode, leaveBtn, browseNav, joystickBase, WILLOW_ENTER_RADIUS };
 
 function updateBrowseCount() {
   browseCount.textContent = lanternHitObjects.length ? `${browseIndex + 1} / ${lanternHitObjects.length}` : '';
@@ -2167,7 +2180,8 @@ function animate() {
     const dv = (el) => `${el.style.display || '(css)'}/${getComputedStyle(el).display}`;
     debugDistEl.textContent =
       `mode:${mode} r:${r2.toFixed(1)} tween:${!!camTween}\n` +
-      `leave ${dv(leaveBtn)}\nbrowse ${dv(browseNav)}\njoy ${dv(joystickBase)}`;
+      `leave ${dv(leaveBtn)}\nbrowse ${dv(browseNav)}\njoy ${dv(joystickBase)}` +
+      (lastEnterOrbitError ? `\nERR: ${lastEnterOrbitError}` : '');
   }
 
   if (camTween) {
