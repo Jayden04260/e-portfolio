@@ -1340,15 +1340,18 @@ buildBirds(9);
 // trees' bark and leaves) instead of the old canvas-drawn streaks — tiled fine enough across
 // the ground circle to still read as grass blades up close, not a stretched blur
 function makeGrassMaterial() {
-  // tighter tiling (30 instead of 45) so individual blades/clumps read larger and more
-  // legible up close while walking, and a boosted normalScale so the real bump detail in
-  // the photo texture actually reads as texture instead of flattening out under the lighting
+  // tighter tiling still (24) so blade/clump detail reads larger up close, and normalScale
+  // pushed further — this is a flat plane with a normal map faking bump shading, which has a
+  // real ceiling on how much it can look like individual 3D blades (no actual silhouette or
+  // parallax, just shading variation); short of instancing thousands of real blade-shaped
+  // cards near the player (its own, much bigger, mobile-performance-sensitive feature) this
+  // is close to the limit of what a textured flat plane can sell
   return new THREE.MeshStandardMaterial({
-    map: loadTiledTexture('./vendor/textures/grass/diff.jpg', 30, 30, true),
-    normalMap: loadTiledTexture('./vendor/textures/grass/nor.jpg', 30, 30, false),
-    normalScale: new THREE.Vector2(2.2, 2.2),
-    roughnessMap: loadTiledTexture('./vendor/textures/grass/arm.jpg', 30, 30, false),
-    metalnessMap: loadTiledTexture('./vendor/textures/grass/arm.jpg', 30, 30, false),
+    map: loadTiledTexture('./vendor/textures/grass/diff.jpg', 24, 24, true),
+    normalMap: loadTiledTexture('./vendor/textures/grass/nor.jpg', 24, 24, false),
+    normalScale: new THREE.Vector2(3.5, 3.5),
+    roughnessMap: loadTiledTexture('./vendor/textures/grass/arm.jpg', 24, 24, false),
+    metalnessMap: loadTiledTexture('./vendor/textures/grass/arm.jpg', 24, 24, false),
     color: palette.ground, roughness: 1, metalness: 1
   });
 }
