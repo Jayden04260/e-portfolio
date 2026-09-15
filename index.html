@@ -1138,6 +1138,10 @@ key.shadow.camera.top = 22;
 key.shadow.camera.bottom = -22;
 key.shadow.camera.far = 60;
 key.shadow.bias = -0.0015;
+// normalBias offsets shadow sampling along the surface normal rather than the light direction
+// — the flat ground never needed it, but the willow's hill is now a curved surface, and
+// curved geometry self-shadowing without this is the classic cause of banded "shadow acne"
+key.shadow.normalBias = 0.06;
 scene.add(key);
 
 const rim = new THREE.DirectionalLight(0x6fa0c8, 0.35);
@@ -1231,26 +1235,37 @@ function makeSkyGlowTexture(hex) {
 // class of bug is no longer possible.
 function buildClouds(count) {
   const tint = new THREE.Color(0xffffff).lerp(new THREE.Color(0x30405a), 1 - palette.cloud);
-  const cloudMat = new THREE.MeshBasicMaterial({
-    color: tint, transparent: true, opacity: 0.4 + palette.cloud * 0.3, depthWrite: false, fog: false
+  // MeshStandardMaterial (not Basic) so the puffs actually pick up the scene's own lighting —
+  // that's what gives a cloud its rounded, three-dimensional look instead of a flat white
+  // shape; opacity is much lower too, since a flat-lit solid blob at high opacity read as a
+  // hard white blotch rather than something soft and airy
+  const cloudMat = new THREE.MeshStandardMaterial({
+    color: tint, transparent: true, opacity: 0.3 + palette.cloud * 0.16, depthWrite: false, fog: false,
+    roughness: 1, metalness: 0
   });
   for (let i = 0; i < count; i++) {
-    const baseScale = 6 + Math.random() * 8;
-    const puffs = 4 + Math.floor(Math.random() * 3);
+    const baseScale = 7 + Math.random() * 9;
+    const puffs = 8 + Math.floor(Math.random() * 6);
     const geoms = [];
     for (let j = 0; j < puffs; j++) {
-      const r = (0.5 + Math.random() * 0.5) * baseScale;
-      const g = new THREE.IcosahedronGeometry(r, 1);
+      // wider, flatter base with smaller puffs stacked toward the top — a cumulus silhouette
+      // instead of a cluster of same-sized blobs, and a higher subdivision level than before
+      // so the puffs read as rounded rather than faceted/gem-like
+      const t = j / puffs;
+      const r = (0.3 + Math.random() * 0.35) * baseScale * (1 - t * 0.4);
+      const g = new THREE.IcosahedronGeometry(r, 2);
       g.translate(
-        (Math.random() - 0.5) * baseScale * 1.8,
-        (Math.random() - 0.5) * baseScale * 0.4,
-        (Math.random() - 0.5) * baseScale * 0.9
+        (Math.random() - 0.5) * baseScale * 2.2,
+        t * baseScale * 0.7 + (Math.random() - 0.5) * baseScale * 0.25,
+        (Math.random() - 0.5) * baseScale * 1.1
       );
       geoms.push(g);
     }
-    const mesh = new THREE.Mesh(mergeGeometries(geoms), cloudMat);
+    const merged = mergeGeometries(geoms);
+    merged.computeVertexNormals();
+    const mesh = new THREE.Mesh(merged, cloudMat);
     const angle = Math.random() * Math.PI * 2, dist = 65 + Math.random() * 75;
-    mesh.position.set(Math.cos(angle) * dist, 32 + Math.random() * 22, Math.sin(angle) * dist);
+    mesh.position.set(Math.cos(angle) * dist, 30 + Math.random() * 20, Math.sin(angle) * dist);
     scene.add(mesh);
   }
 }
@@ -1295,11 +1310,15 @@ buildBirds(9);
 // trees' bark and leaves) instead of the old canvas-drawn streaks — tiled fine enough across
 // the ground circle to still read as grass blades up close, not a stretched blur
 function makeGrassMaterial() {
+  // tighter tiling (30 instead of 45) so individual blades/clumps read larger and more
+  // legible up close while walking, and a boosted normalScale so the real bump detail in
+  // the photo texture actually reads as texture instead of flattening out under the lighting
   return new THREE.MeshStandardMaterial({
-    map: loadTiledTexture('./vendor/textures/grass/diff.jpg', 45, 45, true),
-    normalMap: loadTiledTexture('./vendor/textures/grass/nor.jpg', 45, 45, false),
-    roughnessMap: loadTiledTexture('./vendor/textures/grass/arm.jpg', 45, 45, false),
-    metalnessMap: loadTiledTexture('./vendor/textures/grass/arm.jpg', 45, 45, false),
+    map: loadTiledTexture('./vendor/textures/grass/diff.jpg', 30, 30, true),
+    normalMap: loadTiledTexture('./vendor/textures/grass/nor.jpg', 30, 30, false),
+    normalScale: new THREE.Vector2(2.2, 2.2),
+    roughnessMap: loadTiledTexture('./vendor/textures/grass/arm.jpg', 30, 30, false),
+    metalnessMap: loadTiledTexture('./vendor/textures/grass/arm.jpg', 30, 30, false),
     color: palette.ground, roughness: 1, metalness: 1
   });
 }
