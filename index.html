@@ -2070,7 +2070,10 @@ function enterOrbitMode() {
   if (mode === 'orbit') return;
   mode = 'orbit';
   try {
-    flyControls.unlock();
+    // touch devices never engage pointer lock in the first place (safeLock() only runs
+    // when !IS_TOUCH) — calling exitPointerLock() on iOS Safari regardless throws, which
+    // silently aborted everything below this line
+    if (!IS_TOUCH) flyControls.unlock();
     lockPrompt.style.display = 'none';
     controls.enabled = true;
     hint.textContent = ORBIT_HINT;
