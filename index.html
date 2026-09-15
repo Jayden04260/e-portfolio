@@ -1239,6 +1239,11 @@ function makeCloudTexture() {
   // without this tag the renderer's ACES tone mapping treats it as linear data instead,
   // which is what was producing the odd pinkish cast on some devices
   tex.colorSpace = THREE.SRGBColorSpace;
+  // several mobile GPU drivers generate low-quality mipmaps for canvas-sourced radial
+  // gradients, producing a visible concentric ring/moiré pattern — this sprite is small
+  // enough on screen that skipping mipmaps entirely costs nothing visually
+  tex.generateMipmaps = false;
+  tex.minFilter = THREE.LinearFilter;
   return tex;
 }
 function buildClouds(count) {
