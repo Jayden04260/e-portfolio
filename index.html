@@ -101,8 +101,10 @@
   }
   #tooltip.visible{ opacity:1; }
   #tooltip.pinned{
-    left:50% !important; right:auto !important; bottom:26vh !important; top:auto !important;
-    transform:translate(-50%,0) !important; max-width:300px;
+    /* takes over the name/subtitle's spot in the top-left once orbit mode hides them,
+       rather than sitting centered over the tree where it blocks the view on mobile */
+    left:6vw !important; right:auto !important; top:6vh !important; bottom:auto !important;
+    transform:none !important; max-width:min(440px, calc(100vw - 12vw));
   }
   #tooltip .repo-name{
     font-family:'IBM Plex Mono', monospace;
@@ -1923,6 +1925,7 @@ renderer.domElement.addEventListener('touchstart', (e) => {
 const hint = document.getElementById('hint');
 const crosshair = document.getElementById('crosshair');
 const lockPrompt = document.getElementById('lockPrompt');
+const heroCopy = document.querySelector('.hero-copy');
 const leaveBtn = document.getElementById('leaveBtn');
 const joystickBase = document.getElementById('joystickBase');
 const joystickKnob = document.getElementById('joystickKnob');
@@ -2060,6 +2063,7 @@ function enterOrbitMode() {
   lockPrompt.style.display = 'none';
   controls.enabled = true;
   hint.style.display = 'none'; // controls are self-explanatory once shown; the instructions just crowd the walk-away button
+  heroCopy.style.display = 'none'; // frees up the top-left corner for the pinned project box instead
   leaveBtn.style.display = 'block';
   joystickBase.style.display = 'none';
   browseIndex = -1;
@@ -2078,6 +2082,7 @@ function exitOrbitMode() {
   controls.enabled = false;
   hint.textContent = WALK_HINT;
   hint.style.display = 'block';
+  heroCopy.style.display = 'block';
   leaveBtn.style.display = 'none';
   browseNav.style.display = 'none';
   tooltip.classList.remove('pinned');
