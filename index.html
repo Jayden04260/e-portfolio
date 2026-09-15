@@ -1929,9 +1929,6 @@ const joystickKnob = document.getElementById('joystickKnob');
 const WALK_HINT = IS_TOUCH
   ? 'Drag the joystick to walk, drag anywhere else to look around — find your way to the willow.'
   : 'Click to walk. WASD to move, mouse to look around, click again to free your cursor.';
-const ORBIT_HINT = IS_TOUCH
-  ? 'Drag to orbit · pinch to zoom · tap a lantern, or use ‹ › below to flick through them.'
-  : 'Drag to orbit · scroll to zoom · hover a lantern, click to open it, or use ‹ › below to flick through them.';
 hint.textContent = WALK_HINT;
 
 if (IS_TOUCH) {
@@ -2062,7 +2059,7 @@ function enterOrbitMode() {
   if (!IS_TOUCH) flyControls.unlock();
   lockPrompt.style.display = 'none';
   controls.enabled = true;
-  hint.textContent = ORBIT_HINT;
+  hint.style.display = 'none'; // controls are self-explanatory once shown; the instructions just crowd the walk-away button
   leaveBtn.style.display = 'block';
   joystickBase.style.display = 'none';
   browseIndex = -1;
@@ -2080,6 +2077,7 @@ function exitOrbitMode() {
   mode = 'walk';
   controls.enabled = false;
   hint.textContent = WALK_HINT;
+  hint.style.display = 'block';
   leaveBtn.style.display = 'none';
   browseNav.style.display = 'none';
   tooltip.classList.remove('pinned');
@@ -2114,7 +2112,9 @@ function flyToLantern(index) {
   const dir = worldPos.clone().setY(0);
   if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
   dir.normalize();
-  const endPos = worldPos.clone().add(dir.multiplyScalar(2.8)).add(new THREE.Vector3(0, 0.7, 0));
+  // stand back further than before — 2.8 units put the camera right inside the branches,
+  // cluttered with leaves; this keeps the lantern readable with the tree around it for context
+  const endPos = worldPos.clone().add(dir.multiplyScalar(7)).add(new THREE.Vector3(0, 1.4, 0));
   startCameraTween(endPos, worldPos.clone(), 900);
 
   hovered = null; // force setHover to re-apply even if this is the already-hovered lantern
@@ -2125,6 +2125,12 @@ function flyToLantern(index) {
 }
 document.getElementById('browsePrev').addEventListener('click', () => flyToLantern(browseIndex - 1));
 document.getElementById('browseNext').addEventListener('click', () => flyToLantern(browseIndex + 1));
+// left/right arrow keys drive the same flick-through, for anyone on a keyboard
+window.addEventListener('keydown', (e) => {
+  if (mode !== 'orbit') return;
+  if (e.code === 'ArrowLeft') flyToLantern(browseIndex - 1);
+  else if (e.code === 'ArrowRight') flyToLantern(browseIndex + 1);
+});
 
 // requestPointerLock() can throw synchronously in some contexts (rate-limited by rapid
 // repeat calls, embedded/non-top-level documents), not just fail via the async error event
