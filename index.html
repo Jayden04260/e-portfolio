@@ -1200,10 +1200,16 @@ function makeSkyGlowTexture(hex) {
   const moonSprite = new THREE.Sprite(new THREE.SpriteMaterial({
     map: makeSkyGlowTexture(0xdce8f0), transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, opacity: 0.85
   }));
-  sunSprite.scale.set(9, 9, 1);
-  moonSprite.scale.set(6.5, 6.5, 1);
-  sunSprite.position.set(Math.cos(sunAngle) * SKY_ARC_RADIUS, Math.sin(sunAngle) * SKY_ARC_RADIUS, 0);
-  moonSprite.position.set(Math.cos(moonAngle) * SKY_ARC_RADIUS, Math.sin(moonAngle) * SKY_ARC_RADIUS, 0);
+  sunSprite.scale.set(13, 13, 1);
+  moonSprite.scale.set(9, 9, 1);
+  // spawn faces -Z toward the willow (camera.position.set(0,EYE_HEIGHT,65), looking at the
+  // origin) — bias every position strongly toward -Z so the sun/moon sit roughly where you're
+  // already looking instead of off to the side, while still sweeping left/right and rising
+  // and falling with the hour
+  const skyPos = (angle, r) => new THREE.Vector3(Math.cos(angle) * 0.5, Math.sin(angle), -1.15)
+    .normalize().multiplyScalar(r);
+  sunSprite.position.copy(skyPos(sunAngle, SKY_ARC_RADIUS));
+  moonSprite.position.copy(skyPos(moonAngle, SKY_ARC_RADIUS));
   scene.add(sunSprite, moonSprite);
 }
 
