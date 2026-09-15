@@ -999,10 +999,11 @@ const PALETTES = {
     hemiSky: 0x6a5a6a, hemiGround: 0x1c2418, hemiI: 0.85, keyColor: 0xffb066, keyI: 1.35,
     cloud: 0.6, fireflies: 0.45, lanternGlow: 0.85, birds: 0.15
   },
+  // twilight rather than full black — a deep, still-visible blue rather than near-zero light
   night: {
-    skyTop: 0x0e1c20, skyHorizon: 0x28372f, ground: 0x162419, fog: 0x1a2620, fogDensity: 0.014,
-    hemiSky: 0x3c5148, hemiGround: 0x0d1512, hemiI: 0.32, keyColor: 0xffd9a0, keyI: 1.0,
-    cloud: 0.22, fireflies: 1, lanternGlow: 1, birds: 0
+    skyTop: 0x1b3049, skyHorizon: 0x3c4a63, ground: 0x1a2b1e, fog: 0x233240, fogDensity: 0.013,
+    hemiSky: 0x4a6478, hemiGround: 0x131f16, hemiI: 0.42, keyColor: 0xffd9a0, keyI: 1.0,
+    cloud: 0.3, fireflies: 1, lanternGlow: 1, birds: 0
   }
 };
 const COLOR_KEYS = ['skyTop', 'skyHorizon', 'ground', 'fog', 'hemiSky', 'hemiGround', 'keyColor'];
@@ -1284,11 +1285,14 @@ function makeCloudTexture() {
 }
 function buildClouds(count) {
   const tex = makeCloudTexture();
+  // blend toward the sky's own horizon tone as the day fades — at full daylight (palette.cloud
+  // near 1) this stays essentially white, but at dusk/night (lower palette.cloud) clouds pick
+  // up the same warm/cool cast as the rest of the sky instead of staying a stark, out-of-place
+  // white against an otherwise dark, tinted scene
+  const cloudColor = new THREE.Color(0xffffff).lerp(palette.skyHorizon, 1 - palette.cloud);
   for (let i = 0; i < count; i++) {
-    // plain white always — only opacity (not hue) fades with the time-of-day palette, so
-    // clouds never pick up a blue-grey tint
     const mat = new THREE.SpriteMaterial({
-      map: tex, color: 0xe4e4e0, transparent: true, depthWrite: false, fog: false,
+      map: tex, color: cloudColor, transparent: true, depthWrite: false, fog: false,
       opacity: 0.35 + palette.cloud * 0.22
     });
     const s = new THREE.Sprite(mat);
