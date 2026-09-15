@@ -2155,6 +2155,8 @@ scene.add(fireflies);
 const pathMarkerCount = 16;
 const PATH_MARKER_SPACING = 3; // fixed world-space distance between markers
 const PATH_MARKER_LIFT = 0.3; // clears the halo's own radius (0.25) so it doesn't clip the ground
+const PATH_PULSE_SPEED = 6; // world units/sec the brightness wave travels along the trail
+const PATH_PULSE_WAVELENGTH = 9;
 const pathMarkers = []; // {core, halo}
 {
   const coreMat = new THREE.SpriteMaterial({
@@ -2166,10 +2168,12 @@ const pathMarkers = []; // {core, halo}
     fog: false, blending: THREE.AdditiveBlending, opacity: 0.55
   });
   for (let i = 0; i < pathMarkerCount; i++) {
-    const core = new THREE.Sprite(coreMat);
+    // each needs its own material instance (not the shared one above) so the travelling pulse
+    // can animate each marker's opacity independently
+    const core = new THREE.Sprite(coreMat.clone());
     core.scale.set(0.09, 0.09, 1);
     core.visible = false;
-    const halo = new THREE.Sprite(haloMat);
+    const halo = new THREE.Sprite(haloMat.clone());
     halo.scale.set(0.5, 0.5, 1);
     halo.visible = false;
     scene.add(core, halo);
@@ -2552,6 +2556,12 @@ function animate() {
         pathMarkers[i].halo.position.set(mx, my, mz);
         pathMarkers[i].core.visible = true;
         pathMarkers[i].halo.visible = true;
+        // a brightness wave travelling along the trail toward the tree (increasing d moves
+        // with increasing t), rather than static dots — reinforces which way to go
+        const phase = (d - t * PATH_PULSE_SPEED) * (Math.PI * 2 / PATH_PULSE_WAVELENGTH);
+        const pulse = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(phase));
+        pathMarkers[i].core.material.opacity = pulse;
+        pathMarkers[i].halo.material.opacity = 0.55 * pulse;
       }
     } else {
       for (let i = 0; i < pathMarkerCount; i++) {
