@@ -1102,7 +1102,10 @@ function moundHeightAt(x, z) {
   return t * t * (3 - 2 * t) * MOUND_HEIGHT; // smoothstep falloff
 }
 
-const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 300);
+// a wider FOV on touch devices reads as more zoomed-out — phones are usually held closer to
+// the face than a desktop monitor, so the same FOV that feels right on desktop feels cramped/
+// zoomed-in on mobile
+const camera = new THREE.PerspectiveCamera(IS_TOUCH ? 68 : 58, window.innerWidth / window.innerHeight, 0.1, 300);
 camera.position.set(0, EYE_HEIGHT, 65); // outside the tree ring (36-60) in the clearing at the world's edge
 camera.lookAt(0, 5 + MOUND_HEIGHT, 0);
 
@@ -2139,6 +2142,39 @@ const fireflyMat = new THREE.PointsMaterial({
 const fireflies = new THREE.Points(fireflyGeo, fireflyMat);
 scene.add(fireflies);
 
+// ---------- path markers ----------
+// a breadcrumb trail of small glowing waypoints, recomputed every frame from wherever the
+// player currently is toward the willow — some visitors (especially first-time/older users)
+// don't realize the tree is the destination, so this gives a visual trail to follow instead of
+// relying on the text hint alone. Recomputing from the player's live position each frame (rather
+// than laying markers along one fixed line from the spawn point) means it naturally follows you
+// wherever you wander, and never shows a marker behind you — they only ever exist between where
+// you are now and the tree. Each waypoint is a small bright core plus a separate, larger, softer
+// halo behind it (the same core+halo technique the sun/moon/lantern glows use) rather than one
+// flat sprite, so shrinking the visible dot doesn't just make it a smaller flat circle
+const pathMarkerCount = 16;
+const pathMarkers = []; // {core, halo}
+{
+  const coreMat = new THREE.SpriteMaterial({
+    map: glowTexture, color: 0xffe3a8, transparent: true, depthWrite: false, fog: false,
+    blending: THREE.AdditiveBlending, opacity: 1
+  });
+  const haloMat = new THREE.SpriteMaterial({
+    map: makeSkyGlowTexture(0xffd27a), color: 0xffd27a, transparent: true, depthWrite: false,
+    fog: false, blending: THREE.AdditiveBlending, opacity: 0.55
+  });
+  for (let i = 0; i < pathMarkerCount; i++) {
+    const core = new THREE.Sprite(coreMat);
+    core.scale.set(0.09, 0.09, 1);
+    core.visible = false;
+    const halo = new THREE.Sprite(haloMat);
+    halo.scale.set(0.5, 0.5, 1);
+    halo.visible = false;
+    scene.add(core, halo);
+    pathMarkers.push({ core, halo });
+  }
+}
+
 // ---------- interaction ----------
 const raycaster = new THREE.Raycaster();
 const pointerNDC = new THREE.Vector2();
@@ -2465,6 +2501,57 @@ function animate() {
     if (p >= 1) camTween = null;
   } else if (mode === 'orbit') {
     controls.update();
+  }
+
+  // touch has no persistent hover cursor — a finger only reports a position while actively
+  // touching the screen, so the pointermove-based hover above can leave a stale label lit
+  // after a drag ends. Highlight whichever lantern is centred in view instead, so up close
+  // exactly one project name shows: whichever one you're actually looking at
+  if (IS_TOUCH && mode === 'orbit' && !tooltip.classList.contains('pinned')) {
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const hits = raycaster.intersectObjects(lanternHitObjects.map(o => o.hit));
+    setHover(hits.length ? lanternHitObjects.find(o => o.hit === hits[0].object) : null);
+    // no cursor to position the 2D tooltip box against on touch — anchor it just below
+    // screen centre (roughly under the crosshair) instead of wherever it was last left
+    if (hovered) {
+      tooltip.style.left = '50%';
+      tooltip.style.top = '62%';
+    }
+  }
+
+  // breadcrumb trail: recompute every frame from the player's current position toward the
+  // tree, rather than a fixed line laid down once — see the comment where pathMarkers is built
+  if (mode === 'walk') {
+    const px = camera.position.x, pz = camera.position.z;
+    const playerDist = Math.hypot(px, pz);
+    const targetDist = WILLOW_ENTER_RADIUS - 2;
+    if (playerDist > targetDist + 1) {
+      // a straight line, player -> tree — no meander, so it reads as "go this way" rather
+      // than a wandering path
+      const dirX = -px / playerDist, dirZ = -pz / playerDist;
+      const travel = playerDist - targetDist;
+      for (let i = 0; i < pathMarkerCount; i++) {
+        const frac = (i + 1) / pathMarkerCount;
+        const d = frac * travel;
+        const mx = px + dirX * d;
+        const mz = pz + dirZ * d;
+        const my = moundHeightAt(mx, mz) + 0.14;
+        pathMarkers[i].core.position.set(mx, my, mz);
+        pathMarkers[i].halo.position.set(mx, my, mz);
+        pathMarkers[i].core.visible = true;
+        pathMarkers[i].halo.visible = true;
+      }
+    } else {
+      for (let i = 0; i < pathMarkerCount; i++) {
+        pathMarkers[i].core.visible = false;
+        pathMarkers[i].halo.visible = false;
+      }
+    }
+  } else {
+    for (let i = 0; i < pathMarkerCount; i++) {
+      pathMarkers[i].core.visible = false;
+      pathMarkers[i].halo.visible = false;
+    }
   }
 
   if (!REDUCED_MOTION) {
