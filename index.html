@@ -1582,6 +1582,46 @@ function scatterUnderstory(bushCount, logCount) {
 }
 scatterUnderstory(160, 35);
 
+// ---------- grass blades ----------
+// same technique as the willow's own leaves and the endless-forest trees: a simple silhouette
+// shape, instanced cheaply via InstancedMesh (one draw call regardless of count). A flat
+// normal-mapped ground plane can only fake blade shading so far — actual thin blade shapes,
+// even just a few thousand scattered around the walkable clearing, read as real grass up
+// close in a way no amount of normal-map strength can.
+function makeGrassBladeGeometry() {
+  const h = 1, w = 0.5;
+  const shape = new THREE.Shape();
+  shape.moveTo(-w / 2, 0);
+  shape.quadraticCurveTo(-w * 0.25, h * 0.6, 0, h);
+  shape.quadraticCurveTo(w * 0.25, h * 0.6, w / 2, 0);
+  shape.lineTo(-w / 2, 0);
+  return new THREE.ShapeGeometry(shape);
+}
+function scatterGrassBlades(count) {
+  const bladeGeo = makeGrassBladeGeometry();
+  const bladeMat = new THREE.MeshBasicMaterial({
+    color: palette.ground.clone().offsetHSL(0, 0.08, 0.1), side: THREE.DoubleSide
+  });
+  const mesh = new THREE.InstancedMesh(bladeGeo, bladeMat, count);
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Math.sqrt(Math.random()) * (GROUND_RADIUS - 3); // sqrt(random) for even coverage by area, not bunched at the centre
+    const x = Math.cos(angle) * dist, z = Math.sin(angle) * dist;
+    const bladeH = 0.18 + Math.random() * 0.28;
+    const bladeW = 0.07 + Math.random() * 0.05;
+    m.compose(
+      new THREE.Vector3(x, moundHeightAt(x, z), z),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI * 2),
+      new THREE.Vector3(bladeW, bladeH, 1)
+    );
+    mesh.setMatrixAt(i, m);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  scene.add(mesh);
+}
+scatterGrassBlades(9000);
+
 // ---------- near-distant forest: real trees a bit past the main grove, same as always ----------
 const NEAR_DISTANT_OUTER = 108;
 function scatterDistantForest(count) {
