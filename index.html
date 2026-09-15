@@ -1180,7 +1180,9 @@ function makeSkyGlowTexture(hex) {
   grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 128, 128);
-  return new THREE.CanvasTexture(c);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 {
   const SKY_ARC_RADIUS = 145;
@@ -1216,17 +1218,23 @@ function makeSkyGlowTexture(hex) {
 // ---------- clouds ----------
 function makeCloudTexture() {
   const c = document.createElement('canvas');
-  c.width = c.height = 128;
+  // 128px looked blocky/pixelated once magnified across a large sprite on a high-DPI phone
+  c.width = c.height = 256;
   const ctx = c.getContext('2d');
   for (let i = 0; i < 6; i++) {
-    const x = 24 + Math.random() * 80, y = 44 + Math.random() * 40, r = 18 + Math.random() * 24;
+    const x = 48 + Math.random() * 160, y = 88 + Math.random() * 80, r = 36 + Math.random() * 48;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
     g.addColorStop(0, 'rgba(255,255,255,0.95)');
     g.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   }
-  return new THREE.CanvasTexture(c);
+  const tex = new THREE.CanvasTexture(c);
+  // this texture is authored as plain white/grey display colors, same as a photo would be —
+  // without this tag the renderer's ACES tone mapping treats it as linear data instead,
+  // which is what was producing the odd pinkish cast on some devices
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 function buildClouds(count) {
   const tex = makeCloudTexture();
@@ -1259,7 +1267,9 @@ function makeBirdTexture() {
   ctx.quadraticCurveTo(20, 0, 32, 10);
   ctx.quadraticCurveTo(44, 0, 60, 16);
   ctx.stroke();
-  return new THREE.CanvasTexture(c);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 const birds = [];
 function buildBirds(count) {
@@ -1729,7 +1739,9 @@ function makeGlowTexture() {
   g.addColorStop(1, 'rgba(232, 176, 84, 0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
-  return new THREE.CanvasTexture(c);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 const glowTexture = makeGlowTexture();
 
