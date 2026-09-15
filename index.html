@@ -2157,6 +2157,13 @@ const PATH_MARKER_SPACING = 3; // fixed world-space distance between markers
 const PATH_MARKER_LIFT = 0.3; // clears the halo's own radius (0.25) so it doesn't clip the ground
 const PATH_PULSE_SPEED = 6; // world units/sec the brightness wave travels along the trail
 const PATH_PULSE_WAVELENGTH = 9;
+const PATH_TAPER_RANGE = 5; // markers shrink/fade out over this last stretch before the tree
+const CORE_BASE_SCALE = 0.09, HALO_BASE_SCALE = 0.5;
+// dimmer (but never hidden) in bright daylight, most prominent at dusk/night — matches how
+// everything else atmospheric in the scene (fireflies, leaf glow) scales with the palette,
+// but floored at 0.5 rather than going to 0, since the trail's job (helping people find the
+// tree) matters just as much in daylight
+const PATH_DAY_FACTOR = 0.5 + palette.fireflies * 0.5;
 const pathMarkers = []; // {core, halo}
 {
   const coreMat = new THREE.SpriteMaterial({
@@ -2550,8 +2557,10 @@ function animate() {
         const mx = px + dirX * d;
         const mz = pz + dirZ * d;
         // raised enough that the halo (the larger of the two sprites) actually clears the
-        // ground instead of being cut off half above, half below it
-        const my = moundHeightAt(mx, mz) + PATH_MARKER_LIFT;
+        // ground instead of being cut off half above, half below it, plus a gentle per-marker
+        // float so the trail feels alive rather than perfectly rigid
+        const bob = Math.sin(t * 1.2 + i * 1.7) * 0.05;
+        const my = moundHeightAt(mx, mz) + PATH_MARKER_LIFT + bob;
         pathMarkers[i].core.position.set(mx, my, mz);
         pathMarkers[i].halo.position.set(mx, my, mz);
         pathMarkers[i].core.visible = true;
@@ -2560,8 +2569,13 @@ function animate() {
         // with increasing t), rather than static dots — reinforces which way to go
         const phase = (d - t * PATH_PULSE_SPEED) * (Math.PI * 2 / PATH_PULSE_WAVELENGTH);
         const pulse = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(phase));
-        pathMarkers[i].core.material.opacity = pulse;
-        pathMarkers[i].halo.material.opacity = 0.55 * pulse;
+        // taper the last stretch into the tree — shrinks/fades instead of just stopping, so
+        // the trail blends into the willow's own glow rather than ending abruptly
+        const taper = Math.min(1, (travel - d) / PATH_TAPER_RANGE);
+        pathMarkers[i].core.material.opacity = pulse * taper * PATH_DAY_FACTOR;
+        pathMarkers[i].halo.material.opacity = 0.55 * pulse * taper * PATH_DAY_FACTOR;
+        pathMarkers[i].core.scale.setScalar(CORE_BASE_SCALE * taper);
+        pathMarkers[i].halo.scale.setScalar(HALO_BASE_SCALE * taper);
       }
     } else {
       for (let i = 0; i < pathMarkerCount; i++) {
