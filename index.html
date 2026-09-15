@@ -1866,7 +1866,14 @@ function makeLeafTexture() {
   return new THREE.CanvasTexture(c);
 }
 const leafTexture = makeLeafTexture();
-const leafMaterial = new THREE.SpriteMaterial({ map: leafTexture, transparent: true, depthWrite: false });
+// sprites are unlit, so there's no emissive channel — approximate a subtle turquoise glow on
+// the leaf strands (not the trunk) by tinting the (otherwise white, i.e. untinted) sprite
+// colour towards turquoise, scaled by palette.fireflies so it's essentially untinted by day
+// and a faint cast once it's dark
+const leafTintColor = new THREE.Color(0xffffff).lerp(new THREE.Color(0x7fe8d8), palette.fireflies * 0.26);
+const leafMaterial = new THREE.SpriteMaterial({
+  map: leafTexture, color: leafTintColor, transparent: true, depthWrite: false
+});
 
 // ---------- glow texture for lanterns ----------
 function makeGlowTexture() {
@@ -2033,38 +2040,19 @@ while (repoIndex < ITEMS.length && shuffledTips.length) {
 // ground, exactly like anything else placed on the hill
 trunkGroup.position.y = MOUND_HEIGHT;
 
-// ---------- willow glow ----------
-// a separate warm light + additive halo sprite floated at the canopy — never touches the
-// willow's own generation, shape, bark, or leaf materials (those stay exactly as built above),
-// this just adds atmosphere the same way the sun/moon/lantern glow sprites already do elsewhere.
-// Driven by palette.fireflies (0 at day, ramping up through dusk/night) so it stays invisible
-// in daylight and reads as a magical glow once the scene gets dark
-{
-  const willowGlowColor = 0xffd27a;
-  const haloSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: makeSkyGlowTexture(willowGlowColor), color: willowGlowColor, transparent: true,
-    depthWrite: false, fog: false, blending: THREE.AdditiveBlending,
-    opacity: 0.08 + palette.fireflies * 0.5
-  }));
-  haloSprite.scale.set(30, 30, 1);
-  haloSprite.position.set(0, MOUND_HEIGHT + 8, 0);
-  scene.add(haloSprite);
-
-  const willowGlowLight = new THREE.PointLight(willowGlowColor, 0.15 + palette.fireflies * 1.1, 26, 2);
-  willowGlowLight.position.set(0, MOUND_HEIGHT + 6, 0);
-  scene.add(willowGlowLight);
-}
-
 // ---------- ambient fireflies ----------
-const fireflyCount = REDUCED_MOTION ? 0 : 90;
+// spread across the walkable forest (not just the tight clearing right at the willow) — even
+// coverage by area (sqrt of a uniform random radius), same technique the grass scatter uses
+const fireflyCount = REDUCED_MOTION ? 0 : 400;
 const fireflyGeo = new THREE.BufferGeometry();
 const fPos = new Float32Array(fireflyCount * 3);
 for (let i = 0; i < fireflyCount; i++) {
-  const x = (Math.random() - 0.5) * 22;
-  const z = (Math.random() - 0.5) * 22;
-  // spawn relative to the mound's actual surface at this point, not the original flat y=0 —
-  // otherwise most of this Y range sits below the hill's raised peak (up to MOUND_HEIGHT) and
-  // ends up spawning inside/underground, invisible behind the solid ground mesh
+  const angle = Math.random() * Math.PI * 2;
+  const dist = Math.sqrt(Math.random()) * FOREST_CLEARING_RADIUS;
+  const x = Math.cos(angle) * dist, z = Math.sin(angle) * dist;
+  // spawn relative to the mound's actual surface at this point, not a flat y=0 — otherwise
+  // this Y range sits below the hill's raised peak (up to MOUND_HEIGHT) near the tree and ends
+  // up spawning inside/underground, invisible behind the solid ground mesh
   fPos[i * 3] = x;
   fPos[i * 3 + 1] = moundHeightAt(x, z) + 0.8 + Math.random() * 9;
   fPos[i * 3 + 2] = z;
