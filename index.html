@@ -2153,6 +2153,8 @@ scene.add(fireflies);
 // halo behind it (the same core+halo technique the sun/moon/lantern glows use) rather than one
 // flat sprite, so shrinking the visible dot doesn't just make it a smaller flat circle
 const pathMarkerCount = 16;
+const PATH_MARKER_SPACING = 3; // fixed world-space distance between markers
+const PATH_MARKER_LIFT = 0.3; // clears the halo's own radius (0.25) so it doesn't clip the ground
 const pathMarkers = []; // {core, halo}
 {
   const coreMat = new THREE.SpriteMaterial({
@@ -2530,12 +2532,22 @@ function animate() {
       // than a wandering path
       const dirX = -px / playerDist, dirZ = -pz / playerDist;
       const travel = playerDist - targetDist;
+      // fixed real-world spacing rather than a fraction of the remaining distance — spacing
+      // markers as a fraction of travel meant they all compressed/stretched relative to each
+      // other as you moved (recalculated fresh every frame), which read as swimmy rather than
+      // smooth. Fixed spacing means they just slide steadily forward instead
       for (let i = 0; i < pathMarkerCount; i++) {
-        const frac = (i + 1) / pathMarkerCount;
-        const d = frac * travel;
+        const d = (i + 1) * PATH_MARKER_SPACING;
+        if (d > travel) {
+          pathMarkers[i].core.visible = false;
+          pathMarkers[i].halo.visible = false;
+          continue;
+        }
         const mx = px + dirX * d;
         const mz = pz + dirZ * d;
-        const my = moundHeightAt(mx, mz) + 0.14;
+        // raised enough that the halo (the larger of the two sprites) actually clears the
+        // ground instead of being cut off half above, half below it
+        const my = moundHeightAt(mx, mz) + PATH_MARKER_LIFT;
         pathMarkers[i].core.position.set(mx, my, mz);
         pathMarkers[i].halo.position.set(mx, my, mz);
         pathMarkers[i].core.visible = true;
