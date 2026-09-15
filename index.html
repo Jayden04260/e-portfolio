@@ -196,6 +196,15 @@
     min-width:44px; text-align:center;
   }
 
+  /* temporary — shows live distance to the willow so we can pin down why the enter-radius
+     never seems to trigger on touch. safe to remove once that's fixed. */
+  #debugDist{
+    position:fixed; top:12px; right:12px; z-index:40;
+    font-family:'IBM Plex Mono', monospace; font-size:13px; color:#fff;
+    background:rgba(0,0,0,0.65); padding:6px 10px; border-radius:2px;
+    pointer-events:none;
+  }
+
   /* ---------- 2D landing view (hybrid: 2D grid <-> 3D forest, laid out like the space site) ---------- */
   #grid2D{
     position:fixed; inset:0; z-index:90; overflow-y:auto; scroll-behavior:smooth; display:none;
@@ -524,6 +533,8 @@
   <span id="browseCount"></span>
   <button id="browseNext" aria-label="Next project">›</button>
 </div>
+
+<div id="debugDist"></div>
 
 <div id="tooltip">
   <p class="repo-name"></p>
@@ -1926,6 +1937,7 @@ const lockPrompt = document.getElementById('lockPrompt');
 const leaveBtn = document.getElementById('leaveBtn');
 const joystickBase = document.getElementById('joystickBase');
 const joystickKnob = document.getElementById('joystickKnob');
+const debugDistEl = document.getElementById('debugDist'); // temporary debug HUD
 const WALK_HINT = IS_TOUCH
   ? 'Drag the joystick to walk, drag anywhere else to look around — find your way to the willow.'
   : 'Click to walk. WASD to move, mouse to look around, click again to free your cursor.';
@@ -2043,6 +2055,7 @@ function updateWalk(dt) {
     camera.position.x *= s;
     camera.position.z *= s;
   }
+  if (debugDistEl) debugDistEl.textContent = `dist ${r.toFixed(1)} / need <${WILLOW_ENTER_RADIUS} · touch:${IS_TOUCH} · joy:${joystick.active}`;
   if (r < WILLOW_ENTER_RADIUS) enterOrbitMode();
 }
 
