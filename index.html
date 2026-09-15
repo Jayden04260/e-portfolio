@@ -1195,10 +1195,7 @@ function makeSkyGlowTexture(hex) {
   const sunAngle = ((hh - 6) / 24) * Math.PI * 2;
   const moonAngle = sunAngle + Math.PI;
 
-  // warmer and more orange low on the horizon, near-white up at zenith — cheap since this is
-  // baked into the texture once, not recomputed per frame
-  const heightFrac = THREE.MathUtils.clamp(Math.sin(sunAngle), 0, 1);
-  const sunColor = new THREE.Color(0xffa552).lerp(new THREE.Color(0xfff8e0), heightFrac);
+  const sunColor = new THREE.Color(0xffffff);
 
   // normal (not additive) blending — additive light accumulated against an already
   // near-max-brightness daytime sky pushes straight into this renderer's ACES highlight
