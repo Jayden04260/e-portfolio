@@ -1620,12 +1620,22 @@ function scatterGrassBlades(count) {
   // any randomly-rotated field of thin, sideways-facing cards short of enough ambient fill once
   // they're pointed away from the one directional light, reading as solid black flecks no
   // matter the base colour. Unlit avoids that entirely, but on its own it can't track the
-  // scene's own lighting getting dimmer at dusk/night, so scale the flat colour down by the
-  // same hemi+key light intensity the real (lit) ground uses, relative to daytime, so it still
-  // darkens alongside the rest of the scene instead of staying fixed while everything around it dims
-  const DAY_LIGHT_REF = (PALETTES.day.hemiI + PALETTES.day.keyI) / 2;
-  const lightFactor = Math.min(1, (palette.hemiI + palette.keyI) / 2 / DAY_LIGHT_REF);
-  const bladeColor = palette.ground.clone().multiplyScalar(lightFactor);
+  // scene's own lighting getting dimmer (and warmer/cooler-tinted) at dusk/night — the ground
+  // is lit, so it picks up both the dimming AND the key light's warm/cool colour cast, while a
+  // flat unlit colour has neither unless we bake an approximation of both in ourselves.
+  // Build an approximate "light colour" per palette (key + a little hemisphere sky), then use
+  // its ratio to daytime's version (which is close to white, so day is left essentially
+  // unchanged) to scale both the brightness and the hue of the flat blade colour together
+  const lightTint = (p) => p.keyColor.clone().multiplyScalar(p.keyI)
+    .add(p.hemiSky.clone().multiplyScalar(p.hemiI * 0.4));
+  const dayTint = lightTint(blendPalettes(PALETTES.day, PALETTES.day, 0));
+  const curTint = lightTint(palette);
+  const tintRatio = new THREE.Color(
+    Math.min(1, curTint.r / dayTint.r),
+    Math.min(1, curTint.g / dayTint.g),
+    Math.min(1, curTint.b / dayTint.b)
+  );
+  const bladeColor = palette.ground.clone().multiply(tintRatio);
   const bladeMat = new THREE.MeshBasicMaterial({ color: bladeColor, side: THREE.DoubleSide });
   const mesh = new THREE.InstancedMesh(bladeGeo, bladeMat, count);
   const m = new THREE.Matrix4();
