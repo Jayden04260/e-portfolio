@@ -1614,14 +1614,18 @@ function makeGrassBladeGeometry() {
 }
 function scatterGrassBlades(count) {
   const bladeGeo = makeGrassBladeGeometry();
-  // unlit, exact same colour as the ground (no offset, no derived shade) — a lit material
-  // (Lambert or Standard) here looks wrong two different ways: the blade is a thin vertical
-  // card, so its true geometric normal faces sideways, and THREE's automatic backface normal
-  // flip (used for DoubleSide rendering) flips it based on which face happens to be toward the
-  // camera — nothing to do with the light — so roughly half of any random-rotation field reads
-  // as fully unlit black. Faking the normal to point straight up doesn't fix this either, since
-  // the same camera-relative flip still applies to the faked normal. Unlit sidesteps all of it.
-  const bladeColor = palette.ground.clone();
+  // unlit — a lit material here (tried MeshLambertMaterial and MeshStandardMaterial, with the
+  // blade's true sideways normal, a faked upward one, and even an explicit dual-wound geometry
+  // to sidestep THREE.DoubleSide's camera-relative backface flip) always leaves roughly half of
+  // any randomly-rotated field of thin, sideways-facing cards short of enough ambient fill once
+  // they're pointed away from the one directional light, reading as solid black flecks no
+  // matter the base colour. Unlit avoids that entirely, but on its own it can't track the
+  // scene's own lighting getting dimmer at dusk/night, so scale the flat colour down by the
+  // same hemi+key light intensity the real (lit) ground uses, relative to daytime, so it still
+  // darkens alongside the rest of the scene instead of staying fixed while everything around it dims
+  const DAY_LIGHT_REF = (PALETTES.day.hemiI + PALETTES.day.keyI) / 2;
+  const lightFactor = Math.min(1, (palette.hemiI + palette.keyI) / 2 / DAY_LIGHT_REF);
+  const bladeColor = palette.ground.clone().multiplyScalar(lightFactor);
   const bladeMat = new THREE.MeshBasicMaterial({ color: bladeColor, side: THREE.DoubleSide });
   const mesh = new THREE.InstancedMesh(bladeGeo, bladeMat, count);
   const m = new THREE.Matrix4();
