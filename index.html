@@ -199,10 +199,10 @@
   /* temporary — shows live distance to the willow so we can pin down why the enter-radius
      never seems to trigger on touch. safe to remove once that's fixed. */
   #debugDist{
-    position:fixed; top:12px; right:12px; z-index:40;
-    font-family:'IBM Plex Mono', monospace; font-size:13px; color:#fff;
-    background:rgba(0,0,0,0.65); padding:6px 10px; border-radius:2px;
-    pointer-events:none;
+    position:fixed; top:12px; right:12px; z-index:40; max-width:60vw;
+    font-family:'IBM Plex Mono', monospace; font-size:12px; line-height:1.5; color:#fff;
+    background:rgba(0,0,0,0.72); padding:8px 10px; border-radius:2px;
+    pointer-events:none; white-space:pre-line;
   }
 
   /* ---------- 2D landing view (hybrid: 2D grid <-> 3D forest, laid out like the space site) ---------- */
@@ -2055,7 +2055,6 @@ function updateWalk(dt) {
     camera.position.x *= s;
     camera.position.z *= s;
   }
-  if (debugDistEl) debugDistEl.textContent = `dist ${r.toFixed(1)} / need <${WILLOW_ENTER_RADIUS} · touch:${IS_TOUCH} · joy:${joystick.active}`;
   if (r < WILLOW_ENTER_RADIUS) enterOrbitMode();
 }
 
@@ -2162,6 +2161,14 @@ function animate() {
   const t = elapsed;
 
   updateWalk(dt);
+
+  if (debugDistEl) {
+    const r2 = Math.hypot(camera.position.x, camera.position.z);
+    const dv = (el) => `${el.style.display || '(css)'}/${getComputedStyle(el).display}`;
+    debugDistEl.textContent =
+      `mode:${mode} r:${r2.toFixed(1)} tween:${!!camTween}\n` +
+      `leave ${dv(leaveBtn)}\nbrowse ${dv(browseNav)}\njoy ${dv(joystickBase)}`;
+  }
 
   if (camTween) {
     const p = Math.min((performance.now() - camTween.t0) / camTween.duration, 1);
