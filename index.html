@@ -76,7 +76,7 @@
 
   .hint{
     position:fixed;
-    bottom:5vh; left:6vw;
+    bottom:5vh; left:6vw; max-width:60vw;
     font-size:13px;
     color:var(--moss);
     font-weight:300;
@@ -101,7 +101,7 @@
   }
   #tooltip.visible{ opacity:1; }
   #tooltip.pinned{
-    left:50% !important; right:auto !important; bottom:15vh !important; top:auto !important;
+    left:50% !important; right:auto !important; bottom:26vh !important; top:auto !important;
     transform:translate(-50%,0) !important; max-width:300px;
   }
   #tooltip .repo-name{
@@ -181,7 +181,7 @@
   }
 
   #browseNav{
-    position:fixed; left:50%; bottom:12vh; transform:translateX(-50%); z-index:15;
+    position:fixed; left:50%; bottom:17vh; transform:translateX(-50%); z-index:15;
     display:none; align-items:center; gap:16px;
     font-family:'Fraunces', serif; color:var(--cream);
   }
@@ -194,15 +194,6 @@
   #browseCount{
     font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--moss);
     min-width:44px; text-align:center;
-  }
-
-  /* temporary — shows live distance to the willow so we can pin down why the enter-radius
-     never seems to trigger on touch. safe to remove once that's fixed. */
-  #debugDist{
-    position:fixed; top:12px; right:12px; z-index:40; max-width:92vw; max-height:70vh; overflow:auto;
-    font-family:'IBM Plex Mono', monospace; font-size:11px; line-height:1.5; color:#fff;
-    background:rgba(0,0,0,0.78); padding:8px 10px; border-radius:2px;
-    pointer-events:none; white-space:pre-wrap; word-break:break-all;
   }
 
   /* ---------- 2D landing view (hybrid: 2D grid <-> 3D forest, laid out like the space site) ---------- */
@@ -533,8 +524,6 @@
   <span id="browseCount"></span>
   <button id="browseNext" aria-label="Next project">›</button>
 </div>
-
-<div id="debugDist"></div>
 
 <div id="tooltip">
   <p class="repo-name"></p>
@@ -1937,7 +1926,6 @@ const lockPrompt = document.getElementById('lockPrompt');
 const leaveBtn = document.getElementById('leaveBtn');
 const joystickBase = document.getElementById('joystickBase');
 const joystickKnob = document.getElementById('joystickKnob');
-const debugDistEl = document.getElementById('debugDist'); // temporary debug HUD
 const WALK_HINT = IS_TOUCH
   ? 'Drag the joystick to walk, drag anywhere else to look around — find your way to the willow.'
   : 'Click to walk. WASD to move, mouse to look around, click again to free your cursor.';
@@ -2065,36 +2053,27 @@ function startCameraTween(endPos, endTarget, duration = 1100) {
   camTween = { startPos: camera.position.clone(), endPos, startTarget: controls.target.clone(), endTarget, t0: performance.now(), duration };
 }
 
-let lastEnterOrbitError = ''; // temporary debug
 function enterOrbitMode() {
   if (mode === 'orbit') return;
   mode = 'orbit';
-  try {
-    // touch devices never engage pointer lock in the first place (safeLock() only runs
-    // when !IS_TOUCH) — calling exitPointerLock() on iOS Safari regardless throws, which
-    // silently aborted everything below this line
-    if (!IS_TOUCH) flyControls.unlock();
-    lockPrompt.style.display = 'none';
-    controls.enabled = true;
-    hint.textContent = ORBIT_HINT;
-    leaveBtn.style.display = 'block';
-    joystickBase.style.display = 'none';
-    browseIndex = -1;
-    updateBrowseCount();
-    browseNav.style.display = 'flex';
-    // force an immediate reflow — some mobile browsers defer/coalesce a style change made
-    // mid-touch inside a rAF callback until something reads layout, leaving stale paint
-    void leaveBtn.offsetHeight; void joystickBase.offsetHeight; void browseNav.offsetHeight;
-    const dir = camera.position.clone().setY(0);
-    if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
-    dir.normalize();
-    // step back from wherever we crossed the threshold to a framing that shows the whole tree,
-    // not just whatever's directly in front of us at the canopy's edge
-    startCameraTween(new THREE.Vector3(dir.x * 32, 11.5 + MOUND_HEIGHT, dir.z * 32), new THREE.Vector3(0, 7 + MOUND_HEIGHT, 0));
-  } catch (err) {
-    lastEnterOrbitError = String(err && err.stack || err);
-    console.error('enterOrbitMode failed:', err);
-  }
+  // touch devices never engage pointer lock in the first place (safeLock() only runs when
+  // !IS_TOUCH) — calling exitPointerLock() on iOS Safari regardless throws, which used to
+  // silently abort this whole function before any of the UI below ever toggled
+  if (!IS_TOUCH) flyControls.unlock();
+  lockPrompt.style.display = 'none';
+  controls.enabled = true;
+  hint.textContent = ORBIT_HINT;
+  leaveBtn.style.display = 'block';
+  joystickBase.style.display = 'none';
+  browseIndex = -1;
+  updateBrowseCount();
+  browseNav.style.display = 'flex';
+  const dir = camera.position.clone().setY(0);
+  if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
+  dir.normalize();
+  // step back from wherever we crossed the threshold to a framing that shows the whole tree,
+  // not just whatever's directly in front of us at the canopy's edge
+  startCameraTween(new THREE.Vector3(dir.x * 32, 11.5 + MOUND_HEIGHT, dir.z * 32), new THREE.Vector3(0, 7 + MOUND_HEIGHT, 0));
 }
 
 function exitOrbitMode() {
@@ -2119,10 +2098,6 @@ leaveBtn.addEventListener('click', exitOrbitMode);
 const browseNav = document.getElementById('browseNav');
 const browseCount = document.getElementById('browseCount');
 let browseIndex = -1;
-
-// temporary — exposes internals to the devtools console for direct testing without needing
-// to actually walk/touch anything
-window.__debug = { enterOrbitMode, exitOrbitMode, camera, mode: () => mode, leaveBtn, browseNav, joystickBase, WILLOW_ENTER_RADIUS };
 
 function updateBrowseCount() {
   browseCount.textContent = lanternHitObjects.length ? `${browseIndex + 1} / ${lanternHitObjects.length}` : '';
@@ -2177,15 +2152,6 @@ function animate() {
   const t = elapsed;
 
   updateWalk(dt);
-
-  if (debugDistEl) {
-    const r2 = Math.hypot(camera.position.x, camera.position.z);
-    const dv = (el) => `${el.style.display || '(css)'}/${getComputedStyle(el).display}`;
-    debugDistEl.textContent =
-      `mode:${mode} r:${r2.toFixed(1)} tween:${!!camTween}\n` +
-      `leave ${dv(leaveBtn)}\nbrowse ${dv(browseNav)}\njoy ${dv(joystickBase)}` +
-      (lastEnterOrbitError ? `\nERR: ${lastEnterOrbitError}` : '');
-  }
 
   if (camTween) {
     const p = Math.min((performance.now() - camTween.t0) / camTween.duration, 1);
