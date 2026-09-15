@@ -1589,19 +1589,24 @@ scatterUnderstory(160, 35);
 // even just a few thousand scattered around the walkable clearing, read as real grass up
 // close in a way no amount of normal-map strength can.
 function makeGrassBladeGeometry() {
-  const h = 1, w = 0.5;
+  // a straight symmetric taper to a sharp point is exactly what reads as "a triangle" —
+  // leaning the blade to one side as it rises, and rounding the tip instead of a sharp point,
+  // breaks that up. Every instance shares this one geometry (InstancedMesh requires it) but
+  // each gets its own random rotation around Y, so the lean still ends up facing a different
+  // world direction per blade
+  const h = 1, wBase = 0.5, lean = 0.22;
   const shape = new THREE.Shape();
-  shape.moveTo(-w / 2, 0);
-  shape.quadraticCurveTo(-w * 0.25, h * 0.6, 0, h);
-  shape.quadraticCurveTo(w * 0.25, h * 0.6, w / 2, 0);
-  shape.lineTo(-w / 2, 0);
+  shape.moveTo(-wBase / 2, 0);
+  shape.quadraticCurveTo(-wBase * 0.18 + lean * 0.5, h * 0.6, lean * 0.85, h * 0.94);
+  shape.quadraticCurveTo(lean * 1.05, h, lean * 1.15, h * 0.95);
+  shape.quadraticCurveTo(wBase * 0.18 + lean * 0.5, h * 0.6, wBase / 2, 0);
+  shape.lineTo(-wBase / 2, 0);
   return new THREE.ShapeGeometry(shape);
 }
 function scatterGrassBlades(count) {
   const bladeGeo = makeGrassBladeGeometry();
-  const bladeMat = new THREE.MeshBasicMaterial({
-    color: palette.ground.clone().offsetHSL(0, 0.04, 0.08), side: THREE.DoubleSide
-  });
+  // same colour as the ground beneath it, exactly — no separate tint
+  const bladeMat = new THREE.MeshBasicMaterial({ color: palette.ground.clone(), side: THREE.DoubleSide });
   const mesh = new THREE.InstancedMesh(bladeGeo, bladeMat, count);
   const m = new THREE.Matrix4();
   for (let i = 0; i < count; i++) {
