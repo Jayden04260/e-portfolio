@@ -1288,8 +1288,8 @@ function buildClouds(count) {
     // plain white always — only opacity (not hue) fades with the time-of-day palette, so
     // clouds never pick up a blue-grey tint
     const mat = new THREE.SpriteMaterial({
-      map: tex, color: 0xffffff, transparent: true, depthWrite: false, fog: false,
-      opacity: 0.55 + palette.cloud * 0.3
+      map: tex, color: 0xe4e4e0, transparent: true, depthWrite: false, fog: false,
+      opacity: 0.35 + palette.cloud * 0.22
     });
     const s = new THREE.Sprite(mat);
     const scale = 20 + Math.random() * 26;
@@ -1600,7 +1600,7 @@ function makeGrassBladeGeometry() {
 function scatterGrassBlades(count) {
   const bladeGeo = makeGrassBladeGeometry();
   const bladeMat = new THREE.MeshBasicMaterial({
-    color: palette.ground.clone().offsetHSL(0, 0.08, 0.1), side: THREE.DoubleSide
+    color: palette.ground.clone().offsetHSL(0, 0.04, 0.08), side: THREE.DoubleSide
   });
   const mesh = new THREE.InstancedMesh(bladeGeo, bladeMat, count);
   const m = new THREE.Matrix4();
@@ -1608,7 +1608,7 @@ function scatterGrassBlades(count) {
     const angle = Math.random() * Math.PI * 2;
     const dist = Math.sqrt(Math.random()) * (GROUND_RADIUS - 3); // sqrt(random) for even coverage by area, not bunched at the centre
     const x = Math.cos(angle) * dist, z = Math.sin(angle) * dist;
-    const bladeH = 0.18 + Math.random() * 0.28;
+    const bladeH = (0.18 + Math.random() * 0.28) * 0.25; // 3/4 shorter than before
     const bladeW = 0.07 + Math.random() * 0.05;
     m.compose(
       new THREE.Vector3(x, moundHeightAt(x, z), z),
@@ -1620,7 +1620,7 @@ function scatterGrassBlades(count) {
   mesh.instanceMatrix.needsUpdate = true;
   scene.add(mesh);
 }
-scatterGrassBlades(9000);
+scatterGrassBlades(100000);
 
 // ---------- near-distant forest: real trees a bit past the main grove, same as always ----------
 const NEAR_DISTANT_OUTER = 108;
