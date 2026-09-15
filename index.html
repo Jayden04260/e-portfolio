@@ -1233,40 +1233,70 @@ function makeSkyGlowTexture(hex) {
 // artifact on one specific device, which points at the gradient-texture approach itself
 // rather than any one setting on it. Solid geometry has no texture at all, so that whole
 // class of bug is no longer possible.
+// wispy, irregular puff texture instead of one smooth radial gradient — several randomly
+// placed/stretched/rotated soft ellipses composited with "lighter" blending so overlaps
+// brighten rather than stack opaquely, which is what gives a cloud filamentary internal
+// structure instead of reading as a single uniform blotch (same technique used for Orion's
+// nebula wisps, ported from a one-off PIL script to canvas)
+function makeCloudTexture() {
+  const SIZE = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = SIZE;
+  const ctx = c.getContext('2d');
+  const cx = SIZE / 2, cy = SIZE / 2;
+
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 14; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Math.random() * SIZE * 0.26;
+    const bx = cx + Math.cos(angle) * dist;
+    const by = cy + Math.sin(angle) * dist * 0.6; // flattened — wisps read as stretched sheets, not round puffs
+    const bw = SIZE * (0.14 + Math.random() * 0.22);
+    const bh = bw * (0.3 + Math.random() * 0.45); // elongated, not circular
+    const brightness = (90 + Math.random() * 120) / 255;
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.rotate(Math.random() * Math.PI * 2);
+    ctx.filter = `blur(${(bw * 0.16).toFixed(1)}px)`;
+    ctx.fillStyle = `rgba(255,255,255,${brightness.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bw / 2, bh / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.filter = 'none';
+
+  // soft overall taper toward the texture's own edges, layered on top of (not replacing)
+  // the wispy structure above, so individual wisps never hard-clip at the canvas boundary
+  ctx.globalCompositeOperation = 'destination-in';
+  const taper = ctx.createRadialGradient(cx, cy, SIZE * 0.02, cx, cy, SIZE * 0.48);
+  taper.addColorStop(0, 'rgba(255,255,255,1)');
+  taper.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = taper;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.globalCompositeOperation = 'source-over';
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.generateMipmaps = false;
+  tex.minFilter = THREE.LinearFilter;
+  return tex;
+}
 function buildClouds(count) {
-  const tint = new THREE.Color(0xffffff).lerp(new THREE.Color(0x30405a), 1 - palette.cloud);
-  // MeshStandardMaterial (not Basic) so the puffs actually pick up the scene's own lighting —
-  // that's what gives a cloud its rounded, three-dimensional look instead of a flat white
-  // shape; opacity is much lower too, since a flat-lit solid blob at high opacity read as a
-  // hard white blotch rather than something soft and airy
-  const cloudMat = new THREE.MeshStandardMaterial({
-    color: tint, transparent: true, opacity: 0.3 + palette.cloud * 0.16, depthWrite: false, fog: false,
-    roughness: 1, metalness: 0
-  });
+  const tex = makeCloudTexture();
   for (let i = 0; i < count; i++) {
-    const baseScale = 7 + Math.random() * 9;
-    const puffs = 8 + Math.floor(Math.random() * 6);
-    const geoms = [];
-    for (let j = 0; j < puffs; j++) {
-      // wider, flatter base with smaller puffs stacked toward the top — a cumulus silhouette
-      // instead of a cluster of same-sized blobs, and a higher subdivision level than before
-      // so the puffs read as rounded rather than faceted/gem-like
-      const t = j / puffs;
-      const r = (0.3 + Math.random() * 0.35) * baseScale * (1 - t * 0.4);
-      const g = new THREE.IcosahedronGeometry(r, 2);
-      g.translate(
-        (Math.random() - 0.5) * baseScale * 2.2,
-        t * baseScale * 0.7 + (Math.random() - 0.5) * baseScale * 0.25,
-        (Math.random() - 0.5) * baseScale * 1.1
-      );
-      geoms.push(g);
-    }
-    const merged = mergeGeometries(geoms);
-    merged.computeVertexNormals();
-    const mesh = new THREE.Mesh(merged, cloudMat);
+    // plain white always — only opacity (not hue) fades with the time-of-day palette, so
+    // clouds never pick up a blue-grey tint
+    const mat = new THREE.SpriteMaterial({
+      map: tex, color: 0xffffff, transparent: true, depthWrite: false, fog: false,
+      opacity: 0.55 + palette.cloud * 0.3
+    });
+    const s = new THREE.Sprite(mat);
+    const scale = 20 + Math.random() * 26;
+    s.scale.set(scale, scale * 0.6, 1);
     const angle = Math.random() * Math.PI * 2, dist = 65 + Math.random() * 75;
-    mesh.position.set(Math.cos(angle) * dist, 30 + Math.random() * 20, Math.sin(angle) * dist);
-    scene.add(mesh);
+    s.position.set(Math.cos(angle) * dist, 30 + Math.random() * 20, Math.sin(angle) * dist);
+    scene.add(s);
   }
 }
 buildClouds(14);
