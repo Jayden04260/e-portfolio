@@ -1614,8 +1614,11 @@ function makeGrassBladeGeometry() {
 }
 function scatterGrassBlades(count) {
   const bladeGeo = makeGrassBladeGeometry();
-  // same colour as the ground beneath it, exactly — no separate tint
-  const bladeMat = new THREE.MeshBasicMaterial({ color: palette.ground.clone(), side: THREE.DoubleSide });
+  // darker and less saturated than the ground's raw hex — MeshBasicMaterial is unlit, so
+  // without this it renders the base colour at full flat brightness instead of the muted,
+  // shaded tone the lit ground plane shows, which is what read as "neon"
+  const bladeColor = palette.ground.clone().offsetHSL(0, -0.18, -0.14);
+  const bladeMat = new THREE.MeshBasicMaterial({ color: bladeColor, side: THREE.DoubleSide });
   const mesh = new THREE.InstancedMesh(bladeGeo, bladeMat, count);
   const m = new THREE.Matrix4();
   for (let i = 0; i < count; i++) {
