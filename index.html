@@ -999,11 +999,13 @@ const PALETTES = {
     hemiSky: 0x6a5a6a, hemiGround: 0x1c2418, hemiI: 0.85, keyColor: 0xffb066, keyI: 1.35,
     cloud: 0.6, fireflies: 0.45, lanternGlow: 0.85, birds: 0.15
   },
-  // twilight rather than full black — a deep, still-visible blue rather than near-zero light
+  // twilight rather than full black — deep blue overhead fading to a warm, dusk-echoing glow
+  // near the horizon (real twilight keeps a residual warmth low in the sky), and still clearly
+  // visible rather than near-zero light
   night: {
-    skyTop: 0x1b3049, skyHorizon: 0x3c4a63, ground: 0x1a2b1e, fog: 0x233240, fogDensity: 0.013,
-    hemiSky: 0x4a6478, hemiGround: 0x131f16, hemiI: 0.42, keyColor: 0xffd9a0, keyI: 1.0,
-    cloud: 0.3, fireflies: 1, lanternGlow: 1, birds: 0
+    skyTop: 0x18304c, skyHorizon: 0x6a5568, ground: 0x1a2b1e, fog: 0x2c2e3c, fogDensity: 0.013,
+    hemiSky: 0x54607a, hemiGround: 0x151a20, hemiI: 0.42, keyColor: 0xffd9a0, keyI: 1.0,
+    cloud: 0.35, fireflies: 1, lanternGlow: 1, birds: 0
   }
 };
 const COLOR_KEYS = ['skyTop', 'skyHorizon', 'ground', 'fog', 'hemiSky', 'hemiGround', 'keyColor'];
@@ -2032,7 +2034,7 @@ while (repoIndex < ITEMS.length && shuffledTips.length) {
 trunkGroup.position.y = MOUND_HEIGHT;
 
 // ---------- ambient fireflies ----------
-const fireflyCount = REDUCED_MOTION ? 0 : 46;
+const fireflyCount = REDUCED_MOTION ? 0 : 90;
 const fireflyGeo = new THREE.BufferGeometry();
 const fPos = new Float32Array(fireflyCount * 3);
 for (let i = 0; i < fireflyCount; i++) {
@@ -2042,7 +2044,7 @@ for (let i = 0; i < fireflyCount; i++) {
 }
 fireflyGeo.setAttribute('position', new THREE.BufferAttribute(fPos, 3));
 const fireflyMat = new THREE.PointsMaterial({
-  size: 0.06, map: glowTexture, transparent: true, depthWrite: false,
+  size: 0.1, map: glowTexture, transparent: true, depthWrite: false,
   blending: THREE.AdditiveBlending, color: 0xe8c37a, opacity: 0.85 * palette.fireflies
 });
 const fireflies = new THREE.Points(fireflyGeo, fireflyMat);
