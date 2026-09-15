@@ -1614,12 +1614,16 @@ function makeGrassBladeGeometry() {
 }
 function scatterGrassBlades(count) {
   const bladeGeo = makeGrassBladeGeometry();
-  // exact same colour as the ground, no offset — lit (not Basic) so it still shades and
-  // receives shadow the same way the ground does, instead of sitting at flat full brightness
+  // unlit, exact same colour as the ground (no offset, no derived shade) — a lit material
+  // (Lambert or Standard) here looks wrong two different ways: the blade is a thin vertical
+  // card, so its true geometric normal faces sideways, and THREE's automatic backface normal
+  // flip (used for DoubleSide rendering) flips it based on which face happens to be toward the
+  // camera — nothing to do with the light — so roughly half of any random-rotation field reads
+  // as fully unlit black. Faking the normal to point straight up doesn't fix this either, since
+  // the same camera-relative flip still applies to the faked normal. Unlit sidesteps all of it.
   const bladeColor = palette.ground.clone();
-  const bladeMat = new THREE.MeshLambertMaterial({ color: bladeColor, side: THREE.DoubleSide });
+  const bladeMat = new THREE.MeshBasicMaterial({ color: bladeColor, side: THREE.DoubleSide });
   const mesh = new THREE.InstancedMesh(bladeGeo, bladeMat, count);
-  mesh.receiveShadow = true;
   const m = new THREE.Matrix4();
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
