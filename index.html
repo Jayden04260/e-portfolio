@@ -1,0 +1,2182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Jayden Steadman-Jeffrey — Willow</title>
+<!-- Import map MUST precede any modulepreload/module script — browsers can race and fail
+     to resolve bare specifiers ("Failed to resolve module specifier...") if a preload hint
+     for a module is parsed before the import map that defines how to resolve it. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="modulepreload" href="./vendor/three/build/three.module.js">
+<link rel="modulepreload" href="./vendor/three/examples/jsm/controls/OrbitControls.js">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sky-top:#070d0e;
+    --sky-bottom:#16211c;
+    --ground:#0a120d;
+    --cream:#e6e6df;
+    --moss:#7c9086;
+    --amber:#c8903f;
+    --amber-dim:#6b4f26;
+    /* fixed copies for the 2D page's own chrome — --sky-top/--sky-bottom/--ground above get
+       overwritten by JS to track time-of-day for the 3D scene's backdrop, which made the 2D
+       grid page swing bright/unreadable at certain times of day. These never change. */
+    --sky-top-2d:#070d0e;
+    --sky-bottom-2d:#16211c;
+    --ground-2d:#0a120d;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:linear-gradient(to bottom, var(--sky-top) 0%, var(--sky-bottom) 68%, var(--ground) 100%);
+    overflow:hidden;
+    font-family:'Fraunces', serif;
+    color:var(--cream);
+  }
+  #scene-container{ position:fixed; inset:0; }
+  canvas{ display:block; touch-action:none; }
+
+  .hero-copy{
+    position:fixed;
+    top:6vh; left:6vw;
+    max-width:420px;
+    pointer-events:none;
+    z-index:5;
+  }
+  .hero-copy h1{
+    font-weight:500;
+    font-style:italic;
+    font-size:clamp(28px, 4vw, 44px);
+    line-height:1.1;
+    margin:0 0 10px 0;
+    letter-spacing:0.2px;
+    text-shadow:0 1px 3px rgba(0,0,0,0.45), 0 2px 14px rgba(0,0,0,0.3);
+  }
+  .hero-copy p{
+    font-family:'Fraunces', serif;
+    font-weight:300;
+    font-size:15px;
+    line-height:1.5;
+    color:var(--moss);
+    margin:0;
+    max-width:340px;
+    text-shadow:0 1px 4px rgba(0,0,0,0.75), 0 2px 14px rgba(0,0,0,0.5);
+  }
+
+  .hint{
+    position:fixed;
+    bottom:5vh; left:6vw;
+    font-size:13px;
+    color:var(--moss);
+    font-weight:300;
+    z-index:5;
+    pointer-events:none;
+    text-shadow:0 1px 4px rgba(0,0,0,0.75), 0 2px 14px rgba(0,0,0,0.5);
+  }
+
+  #tooltip{
+    position:fixed;
+    z-index:20;
+    pointer-events:none;
+    max-width:260px;
+    padding:14px 16px;
+    background:rgba(14, 24, 22, 0.86);
+    border:1px solid rgba(232, 176, 84, 0.35);
+    border-radius:2px;
+    backdrop-filter: blur(6px);
+    transform:translate(-50%, -115%);
+    opacity:0;
+    transition:opacity 0.18s ease;
+  }
+  #tooltip.visible{ opacity:1; }
+  #tooltip.pinned{
+    left:50% !important; right:auto !important; bottom:15vh !important; top:auto !important;
+    transform:translate(-50%,0) !important; max-width:300px;
+  }
+  #tooltip .repo-name{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    color:var(--amber);
+    margin:0 0 6px 0;
+    font-weight:500;
+  }
+  #tooltip .repo-desc{
+    font-family:'Fraunces', serif;
+    font-weight:300;
+    font-size:13px;
+    line-height:1.45;
+    color:var(--cream);
+    margin:0 0 6px 0;
+  }
+  #tooltip .repo-lang{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--moss);
+    margin:0;
+  }
+
+  #loading{
+    position:fixed; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif; font-style:italic; font-weight:300;
+    font-size:16px; color:var(--moss);
+    z-index:50;
+    transition:opacity 0.6s ease;
+  }
+  #webgl-fallback{
+    position:fixed; inset:0;
+    display:none;
+    align-items:center; justify-content:center;
+    text-align:center;
+    padding:40px;
+    z-index:50;
+  }
+  #webgl-fallback a{ color:var(--amber); }
+
+  #crosshair{
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:6px; height:6px; border-radius:50%;
+    background:rgba(238,240,228,0.8); box-shadow:0 0 4px rgba(0,0,0,0.6);
+    z-index:15; pointer-events:none; display:none;
+  }
+  #lockPrompt{
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    z-index:16; pointer-events:none; text-align:center;
+    font-family:'Fraunces', serif; font-style:italic; font-weight:300;
+    font-size:17px; color:var(--cream);
+    text-shadow:0 2px 10px rgba(0,0,0,0.7);
+    display:none; /* revealed only after the loading overlay fully clears — see loadingEl below */
+  }
+  #leaveBtn{
+    position:fixed; bottom:5vh; right:6vw; z-index:15;
+    display:none;
+    font-family:'Fraunces', serif; font-style:italic; font-size:14px;
+    color:var(--cream); background:rgba(14,24,22,0.6);
+    border:1px solid rgba(200,144,63,0.35); border-radius:2px;
+    padding:10px 18px; cursor:pointer; backdrop-filter:blur(6px);
+  }
+  #leaveBtn:hover{ border-color:var(--amber); }
+
+  #joystickBase{
+    position:fixed; left:6vw; bottom:8vh; z-index:15;
+    width:104px; height:104px; border-radius:50%;
+    background:rgba(20,30,22,0.35); border:1px solid rgba(200,144,63,0.3);
+    display:none; touch-action:none;
+  }
+  #joystickKnob{
+    position:absolute; left:50%; top:50%; width:46px; height:46px; margin:-23px;
+    border-radius:50%; background:rgba(238,240,228,0.55); border:1px solid rgba(200,144,63,0.5);
+    pointer-events:none;
+  }
+
+  #browseNav{
+    position:fixed; left:50%; bottom:5vh; transform:translateX(-50%); z-index:15;
+    display:none; align-items:center; gap:16px;
+    font-family:'Fraunces', serif; color:var(--cream);
+  }
+  #browseNav button{
+    width:38px; height:38px; border-radius:50%; cursor:pointer;
+    background:rgba(14,24,22,0.6); border:1px solid rgba(200,144,63,0.35);
+    color:var(--cream); font-size:16px; backdrop-filter:blur(6px);
+  }
+  #browseNav button:hover{ border-color:var(--amber); }
+  #browseCount{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--moss);
+    min-width:44px; text-align:center;
+  }
+
+  /* ---------- 2D landing view (hybrid: 2D grid <-> 3D forest, laid out like the space site) ---------- */
+  #grid2D{
+    position:fixed; inset:0; z-index:90; overflow-y:auto; scroll-behavior:smooth; display:none;
+    background:linear-gradient(to bottom, var(--sky-top-2d) 0%, var(--sky-bottom-2d) 68%, var(--ground-2d) 100%);
+  }
+  #grid2DFireflies{ position:fixed; inset:0; pointer-events:none; z-index:0; }
+  #grid2DGlow{
+    position:fixed; width:420px; height:420px; border-radius:50%; z-index:0; pointer-events:none;
+    background:radial-gradient(circle, rgba(200,144,63,0.09) 0%, rgba(200,144,63,0) 70%);
+    transform:translate(-50%,-50%); transition:opacity .3s;
+  }
+
+  /* ---------- mode choice: shown first, before either the 3D forest or the 2D grid ---------- */
+  #modeChoice{
+    position:fixed; inset:0; z-index:91; display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:6vh 6vw;
+    background:linear-gradient(to bottom, var(--sky-top-2d) 0%, var(--sky-bottom-2d) 68%, var(--ground-2d) 100%);
+  }
+  .mode-inner{ max-width:760px; }
+  .mode-title{
+    font-family:'Fraunces', serif; font-weight:500; font-style:italic;
+    font-size:clamp(26px,5vw,42px); margin:0 0 10px 0; color:var(--cream);
+  }
+  .mode-sub{ font-family:'Fraunces', serif; font-weight:300; font-size:15px; color:var(--moss); margin:0 0 44px 0; }
+  .mode-options{ display:flex; gap:24px; flex-wrap:wrap; justify-content:center; }
+  .mode-card{
+    flex:1 1 260px; max-width:320px; background:rgba(14,24,22,0.55); border:1px solid rgba(200,144,63,0.3);
+    border-radius:2px; padding:32px 24px; cursor:pointer; color:inherit; font-family:inherit;
+    transition:border-color .2s, transform .2s; display:flex; flex-direction:column; align-items:center; gap:10px;
+  }
+  .mode-card:hover{ border-color:var(--amber); transform:translateY(-3px); }
+  .mode-icon{ font-size:34px; }
+  .mode-label{ font-family:'IBM Plex Mono', monospace; font-size:15px; color:var(--amber); }
+  .mode-desc{ font-family:'Fraunces', serif; font-size:13px; color:var(--moss); line-height:1.5; }
+  @media (max-width:600px){ .mode-options{ flex-direction:column; align-items:center; } }
+
+  /* nav */
+  .nav2D{
+    position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:24px;
+    padding:16px 6vw; background:rgba(14,24,22,0.55); backdrop-filter:blur(14px);
+    border-bottom:1px solid rgba(200,144,63,0.18);
+  }
+  .nav2D-brand{ font-family:'IBM Plex Mono', monospace; font-weight:500; font-size:1.1rem; color:var(--cream); text-decoration:none; }
+  .nav2D-brand .dot{ color:var(--amber); }
+  .nav2D-links{ display:flex; gap:22px; margin-left:8px; flex:1; }
+  .nav2D-links a{ color:var(--moss); font-size:.88rem; text-decoration:none; transition:color .2s; }
+  .nav2D-links a:hover{ color:var(--cream); }
+  .nav2D-github{
+    display:flex; align-items:center; font-size:.85rem; color:var(--moss); text-decoration:none;
+    border:1px solid rgba(200,144,63,0.3); padding:7px 14px; border-radius:2px; transition:.2s;
+  }
+  .nav2D-github:hover{ color:var(--cream); border-color:var(--amber); }
+  .nav2D-toggle{ display:none; background:none; border:0; color:var(--cream); font-size:1.3rem; cursor:pointer; }
+  @media (max-width:760px){
+    .nav2D-links{
+      position:absolute; top:100%; left:0; right:0; flex-direction:column;
+      background:var(--sky-top-2d); padding:16px 6vw; border-bottom:1px solid rgba(200,144,63,0.18); display:none;
+    }
+    .nav2D-links.open{ display:flex; }
+    .nav2D-toggle{ display:block; }
+    .nav2D-github span{ display:none; }
+  }
+
+  /* hero */
+  .grid2D-hero{
+    position:relative; z-index:1; min-height:78vh; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; padding:8vh 6vw 6vh;
+  }
+  /* etched tree-of-life watermark behind the hero copy — public-domain silhouette,
+     recoloured to a faint cream ghost via filter so it reads as an etching, not a logo */
+  .hero-tree-bg{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    height:82%; width:auto; max-width:92%;
+    opacity:0.07; filter:brightness(0) invert(1);
+    pointer-events:none; z-index:0; user-select:none;
+  }
+  .hero2D-content{ position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; }
+  .hero2D-eyebrow{
+    font-family:'IBM Plex Mono', monospace; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--amber); font-size:.76rem; margin:0 0 14px 0;
+  }
+  .grid2D-title{
+    font-family:'Fraunces', serif; font-weight:500; font-style:italic;
+    font-size:clamp(28px, 6vw, 52px); margin:0; color:var(--cream); letter-spacing:.2px;
+  }
+  .grid2D-tagline{
+    font-family:'IBM Plex Mono', monospace; font-size:clamp(14px, 2.2vw, 17px);
+    color:var(--amber); margin:16px 0 6px 0; min-height:1.6em;
+  }
+  .caret2D{ animation:blink2D 1s step-end infinite; color:var(--amber); }
+  @keyframes blink2D{ 50%{ opacity:0; } }
+  .grid2D-sub{
+    font-family:'Fraunces', serif; font-weight:300; font-size:15px; color:var(--moss);
+    max-width:480px; margin:10px auto 30px; line-height:1.5;
+  }
+  .grid2D-cta{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+  .enter-forest-btn{
+    font-family:'Fraunces', serif; font-style:italic; font-size:16px;
+    color:var(--cream); background:rgba(200,144,63,0.12); border:1px solid rgba(200,144,63,0.5);
+    padding:14px 30px; border-radius:2px; cursor:pointer; transition:transform .18s, box-shadow .18s;
+  }
+  .enter-forest-btn:hover{ background:rgba(200,144,63,0.22); transform:translateY(-2px); }
+  .btn-ghost2D{
+    font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--cream); text-decoration:none;
+    border:1px solid rgba(200,144,63,0.3); padding:13px 22px; border-radius:2px; transition:.2s;
+    display:inline-flex; align-items:center;
+  }
+  .btn-ghost2D:hover{ border-color:var(--amber); transform:translateY(-2px); }
+  .btn-sm2D{ padding:8px 16px; font-size:.78rem; cursor:pointer; background:none; }
+
+  /* stats */
+  .grid2D-stats{
+    position:relative; z-index:1; margin:0 auto; padding:0 6vw 9vh;
+    display:grid; grid-template-columns:repeat(4,1fr); gap:20px; text-align:center;
+  }
+  .stat2D-num{
+    display:block; font-family:'IBM Plex Mono', monospace; font-size:clamp(1.3rem,3.4vw,2rem);
+    font-weight:500; color:var(--amber);
+  }
+  .stat2D-label{ font-size:.74rem; color:var(--moss); text-transform:uppercase; letter-spacing:.05em; }
+  @media (max-width:640px){ .grid2D-stats{ grid-template-columns:repeat(2,1fr); row-gap:26px; } }
+
+  /* generic sections — two independent tracks from About onward (About+Featured on the
+     left, Repos+Contact on the right) so the page fills both halves as you scroll,
+     rather than one section stacked full-width beneath the next */
+  .grid2D-columns{
+    position:relative; z-index:1; margin:0 auto; padding:6vh 6vw 8vh;
+    display:grid; grid-template-columns:1fr 1fr; gap:0 64px; align-items:start;
+  }
+  .grid2D-col{ display:flex; flex-direction:column; min-width:0; }
+  .grid2D-section{ padding:5vh 0; }
+  .grid2D-col > .grid2D-section:first-child{ padding-top:0; }
+  .section2D-title{
+    display:flex; align-items:baseline; gap:12px; font-family:'Fraunces', serif; font-style:italic;
+    font-weight:500; font-size:clamp(20px,2.6vw,26px); color:var(--cream); margin:0 0 6px 0;
+  }
+  .section2D-num{ font-family:'IBM Plex Mono', monospace; color:var(--amber); font-size:.8rem; opacity:.75; font-style:normal; }
+  .section2D-sub{ color:var(--moss); font-family:'Fraunces', serif; font-size:13.5px; margin:0 0 28px 0; line-height:1.5; }
+  .about2D-text{ color:var(--moss); font-family:'Fraunces', serif; font-size:15px; line-height:1.65; margin:0; }
+  @media (max-width:820px){
+    .grid2D-columns{ grid-template-columns:1fr; gap:0; }
+  }
+
+  /* Contact sits full-width and centred beneath both columns, not inside either track */
+  .grid2D-section-full{
+    position:relative; z-index:1; text-align:center; padding:6vh 6vw 4vh;
+  }
+  .grid2D-section-full .section2D-title{ justify-content:center; }
+  .grid2D-section-full .section2D-sub{ text-align:center; }
+
+  /* featured grid — richer cards for non-GitHub builds */
+  .featured-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px; }
+  .featured-card{
+    position:relative; overflow:hidden; border-radius:2px; padding:24px;
+    background:linear-gradient(160deg, rgba(200,144,63,0.08), rgba(14,24,22,0.5));
+    border:1px solid rgba(200,144,63,0.25); transition:transform .25s, border-color .25s;
+  }
+  .featured-card:hover{ transform:translateY(-4px); border-color:var(--amber); }
+  .featured-card .pc-badge{
+    display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--ground-2d); background:var(--amber); padding:2px 8px; border-radius:2px;
+    margin-bottom:12px; font-weight:600;
+  }
+  .featured-card h3{ font-family:'IBM Plex Mono', monospace; font-size:15px; color:var(--amber); margin:0 0 10px 0; font-weight:500; }
+  .featured-card p{ font-family:'Fraunces', serif; font-size:13px; color:var(--cream); line-height:1.55; margin:0 0 16px 0; }
+  .tag-row2D{ display:flex; flex-wrap:wrap; gap:8px; }
+  .tag2D{
+    font-size:11px; font-family:'IBM Plex Mono', monospace; color:var(--amber);
+    border:1px solid rgba(200,144,63,0.3); background:rgba(200,144,63,0.08);
+    padding:4px 10px; border-radius:2px;
+  }
+
+  /* repo controls: filter chips + sort + shuffle */
+  .controls2D{ display:flex; flex-wrap:wrap; gap:16px; justify-content:space-between; align-items:center; margin-bottom:26px; }
+  .chip-row{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    font-family:'IBM Plex Mono', monospace; font-size:.78rem; padding:7px 14px; border-radius:2px; cursor:pointer;
+    border:1px solid rgba(200,144,63,0.3); color:var(--moss); background:transparent; transition:.2s;
+  }
+  .chip:hover{ color:var(--cream); border-color:var(--amber); }
+  .chip.active{ background:var(--amber); color:var(--ground-2d); border-color:var(--amber); font-weight:600; }
+  .sort-row2D{ display:flex; align-items:center; gap:10px; font-family:'IBM Plex Mono', monospace; font-size:.8rem; color:var(--moss); }
+  .sort-row2D select{
+    background:var(--sky-top-2d); color:var(--cream); border:1px solid rgba(200,144,63,0.3);
+    border-radius:2px; padding:7px 10px; font-family:inherit; font-size:.8rem;
+  }
+  #repoStatus2D{ display:flex; align-items:center; gap:12px; color:var(--moss); padding:24px 0; font-size:.85rem; font-family:'IBM Plex Mono', monospace; }
+
+  /* repo grid (real GitHub projects) */
+  .project-grid{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:18px;
+    perspective:900px;
+  }
+  .project-card{
+    display:block; background:rgba(14,24,22,0.55); border:1px solid rgba(200,144,63,0.25);
+    border-radius:2px; padding:20px; backdrop-filter:blur(4px); text-decoration:none; color:inherit;
+    cursor:pointer; transition:border-color .2s, box-shadow .2s;
+    transform:rotateX(var(--ry,0deg)) rotateY(var(--rx,0deg));
+  }
+  .project-card:hover{ border-color:var(--amber); box-shadow:0 10px 26px -10px rgba(200,144,63,0.35); }
+  .project-card .pc-badge{
+    display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--ground-2d); background:var(--amber); padding:2px 8px; border-radius:2px;
+    margin-bottom:10px; font-weight:600;
+  }
+  .project-card h3{
+    font-family:'IBM Plex Mono', monospace; font-size:14px; color:var(--amber); margin:0 0 8px 0; font-weight:500;
+  }
+  .project-card p{ font-family:'Fraunces', serif; font-size:13px; color:var(--cream); line-height:1.5; margin:0 0 10px 0; min-height:2.4em; }
+  .project-card .pc-meta{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--moss); display:flex; gap:12px; flex-wrap:wrap; }
+  .project-card .pc-meta .pc-updated{ margin-left:auto; }
+
+  /* contact */
+  .contact-grid{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,220px)); gap:16px;
+    justify-content:center; max-width:720px; margin:0 auto;
+  }
+  .contact-card{
+    display:flex; flex-direction:column; align-items:center; text-align:center; gap:4px; padding:18px; text-decoration:none; color:inherit;
+    border:1px solid rgba(200,144,63,0.25); border-radius:2px; background:rgba(14,24,22,0.5);
+    transition:transform .2s, border-color .2s;
+  }
+  .contact-card:hover{ transform:translateY(-3px); border-color:var(--amber); }
+  .contact2D-icon{ font-size:1.3rem; }
+  .contact2D-label{ font-family:'IBM Plex Mono', monospace; font-size:.72rem; color:var(--moss); text-transform:uppercase; letter-spacing:.05em; }
+  .contact2D-value{ font-family:'Fraunces', serif; font-size:.92rem; color:var(--cream); }
+
+  .site-footer2D{ position:relative; z-index:1; text-align:center; color:var(--moss); font-family:'IBM Plex Mono', monospace; font-size:.75rem; padding:30px 6vw 60px; }
+
+  #backToGridBtn{
+    position:fixed; top:20px; right:20px; z-index:15; display:none;
+    font-family:'Fraunces', serif; font-style:italic; font-size:14px;
+    color:var(--cream); background:rgba(14,24,22,0.6); border:1px solid rgba(200,144,63,0.35);
+    padding:10px 18px; border-radius:2px; cursor:pointer; backdrop-filter:blur(6px);
+  }
+  #backToGridBtn:hover{ border-color:var(--amber); }
+
+  #cardModalBackdrop{
+    position:fixed; inset:0; z-index:95; display:flex; align-items:center; justify-content:center;
+    background:rgba(5,10,7,0.75); backdrop-filter:blur(5px); padding:20px;
+    opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  #cardModalBackdrop.open{ opacity:1; pointer-events:all; }
+  #cardModal{
+    background:var(--sky-top-2d); border:1px solid rgba(200,144,63,0.35); border-radius:2px;
+    max-width:520px; width:100%; max-height:80vh; overflow-y:auto; padding:30px; position:relative;
+    transform:scale(.96); transition:transform .2s;
+  }
+  #cardModalBackdrop.open #cardModal{ transform:scale(1); }
+  #cardModalClose{
+    position:absolute; top:16px; right:16px; background:none; border:0; color:var(--moss);
+    font-size:1.1rem; cursor:pointer;
+  }
+  #cardModalClose:hover{ color:var(--cream); }
+  #cardModalBody .pc-badge{
+    display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--ground-2d); background:var(--amber); padding:2px 8px; border-radius:2px;
+    margin-bottom:12px; font-weight:600;
+  }
+  #cardModalBody h3{ font-family:'IBM Plex Mono', monospace; font-size:19px; color:var(--amber); margin:0 0 4px 0; }
+  #cardModalBody .cm-meta{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--moss); margin-bottom:16px; }
+  #cardModalBody p{ font-family:'Fraunces', serif; font-size:14px; color:var(--cream); line-height:1.6; }
+  #cardModalBody .cm-readme{
+    background:rgba(0,0,0,0.25); border:1px solid rgba(200,144,63,0.2); border-radius:2px; padding:14px;
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--moss); white-space:pre-wrap;
+    max-height:180px; overflow-y:auto; margin:14px 0;
+  }
+  #cardModalBody a.cm-link{
+    display:inline-block; margin-top:6px; font-family:'Fraunces', serif; font-style:italic; font-size:14px;
+    color:var(--cream); background:rgba(200,144,63,0.12); border:1px solid rgba(200,144,63,0.5);
+    padding:10px 20px; border-radius:2px; text-decoration:none;
+  }
+  #cardModalBody a.cm-link:hover{ background:rgba(200,144,63,0.22); }
+</style>
+</head>
+<body>
+
+<div id="loading">the willow is taking root…</div>
+
+<script>
+  // Watchdog: if the 3D scene hasn't signalled readiness within 7s,
+  // something failed to load (blocked CDN, no import-map support, etc).
+  // Show a clear message instead of hanging forever on the loading text.
+  setTimeout(function () {
+    if (!window.__willowReady) {
+      var el = document.getElementById('loading');
+      if (el) {
+        el.innerHTML = 'This scene couldn\'t load — likely a blocked or slow connection (three.js CDN or the GitHub API).<br>Try opening this file in a real browser (Safari/Chrome) rather than an in-app preview, or check your connection.';
+        el.style.opacity = '1';
+        el.style.maxWidth = '80vw';
+        el.style.textAlign = 'center';
+        el.style.fontStyle = 'normal';
+      }
+    }
+  }, 12000);
+</script>
+
+<div id="webgl-fallback">
+  <div>
+    <p>This scene needs WebGL, which your browser can't render right now.</p>
+  </div>
+</div>
+
+<div id="scene-container"></div>
+
+<div class="hero-copy">
+  <h1>Jayden Steadman-Jeffrey</h1>
+  <p id="heroSub">Software &amp; ML engineer. Projects hang here like leaves — each one a small, working thing.</p>
+</div>
+
+<div class="hint" id="hint">Click to walk. WASD to move, mouse to look around — find your way to the willow.</div>
+<div id="crosshair"></div>
+<div id="lockPrompt">Click anywhere to start walking</div>
+<button id="leaveBtn">← Walk away</button>
+<div id="joystickBase"><div id="joystickKnob"></div></div>
+<div id="browseNav">
+  <button id="browsePrev" aria-label="Previous project">‹</button>
+  <span id="browseCount"></span>
+  <button id="browseNext" aria-label="Next project">›</button>
+</div>
+
+<div id="tooltip">
+  <p class="repo-name"></p>
+  <p class="repo-desc"></p>
+  <p class="repo-lang"></p>
+</div>
+
+<button id="backToGridBtn">← All projects</button>
+
+<div id="modeChoice">
+  <div class="mode-inner">
+    <h1 class="mode-title">Jayden Steadman-Jeffrey</h1>
+    <p class="mode-sub">Software &amp; ML engineer. Choose how you'd like to look around.</p>
+    <div class="mode-options">
+      <button id="chooseForestBtn" class="mode-card">
+        <span class="mode-icon">🌳</span>
+        <span class="mode-label">Walk the Forest</span>
+        <span class="mode-desc">A walkable 3D willow forest — explore, and find project orbs hanging from its branches.</span>
+      </button>
+      <button id="chooseGridBtn" class="mode-card">
+        <span class="mode-icon">🗂</span>
+        <span class="mode-label">Browse the Grid</span>
+        <span class="mode-desc">A straightforward 2D project list — filters, sorting, and full write-ups.</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="grid2D">
+  <canvas id="grid2DFireflies"></canvas>
+  <div id="grid2DGlow"></div>
+
+  <header class="nav2D">
+    <a href="#grid2DTop" class="nav2D-brand">JS<span class="dot">.</span></a>
+    <nav class="nav2D-links" id="nav2DLinks">
+      <a href="#grid2DAbout">About</a>
+      <a href="#grid2DFeatured">Featured</a>
+      <a href="#grid2DRepos">Repos</a>
+      <a href="#grid2DContact">Contact</a>
+    </nav>
+    <a class="nav2D-github" href="https://github.com/Jayden04260" target="_blank" rel="noopener"><span>@Jayden04260</span></a>
+    <button class="nav2D-toggle" id="nav2DToggle" aria-label="Toggle menu">☰</button>
+  </header>
+
+  <main id="grid2DTop">
+    <section class="grid2D-hero">
+      <img class="hero-tree-bg" src="assets/tree-of-life.svg" alt="" aria-hidden="true">
+      <div class="hero2D-content">
+        <p class="hero2D-eyebrow">// systems online</p>
+        <h1 class="grid2D-title">Jayden Steadman-Jeffrey</h1>
+        <p class="grid2D-tagline"><span id="typewriter2D"></span><span class="caret2D">|</span></p>
+        <p class="grid2D-sub" id="grid2DSub">Software &amp; ML engineer. Projects hang here like leaves — each one a small, working thing.</p>
+        <div class="grid2D-cta">
+          <button id="enterForestBtn" class="enter-forest-btn">🌳 Enter the Forest</button>
+          <a href="#grid2DRepos" class="btn-ghost2D">Browse as a list</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid2D-stats" id="grid2DStats" aria-label="GitHub stats">
+      <div class="stat2D"><span class="stat2D-num" id="stat2DRepos">–</span><span class="stat2D-label">Public repos</span></div>
+      <div class="stat2D"><span class="stat2D-num" id="stat2DStars">–</span><span class="stat2D-label">Stars</span></div>
+      <div class="stat2D"><span class="stat2D-num" id="stat2DLang">–</span><span class="stat2D-label">Top language</span></div>
+      <div class="stat2D"><span class="stat2D-num" id="stat2DUpdated">–</span><span class="stat2D-label">Last shipped</span></div>
+    </section>
+
+    <div class="grid2D-columns">
+      <div class="grid2D-col">
+        <section class="grid2D-section" id="grid2DAbout">
+          <h2 class="section2D-title"><span class="section2D-num">01</span> About</h2>
+          <p class="about2D-text">I like building things that work end-to-end and don't leak data they don't need to — local-first ML pipelines, small tools that solve a real annoyance, and the unglamorous DevOps plumbing that makes a project count as "done" rather than "works on my machine." My focus areas are multimodal engineering — systems that reason across text, audio, and vision at once — and frontier AI, where I spend my own time reading and experimenting with what's next rather than just what already works. Everything below is either live right now or was, at some point, running in production for a real user.</p>
+        </section>
+
+        <section class="grid2D-section" id="grid2DFeatured">
+          <h2 class="section2D-title"><span class="section2D-num">02</span> Featured builds</h2>
+          <p class="section2D-sub">Projects that don't live in a public repo, or that deserve more than a card can say.</p>
+          <div class="featured-grid" id="featuredGrid"></div>
+        </section>
+      </div>
+
+      <div class="grid2D-col">
+        <section class="grid2D-section" id="grid2DRepos">
+          <h2 class="section2D-title"><span class="section2D-num">03</span> GitHub repos</h2>
+          <p class="section2D-sub">Pulled live from the GitHub API — this list updates itself every time you load the page.</p>
+
+          <div class="controls2D">
+            <div class="chip-row" id="langFilters2D" aria-label="Filter by language"></div>
+            <div class="sort-row2D">
+              <label for="sortSelect2D">Sort</label>
+              <select id="sortSelect2D">
+                <option value="updated">Recently updated</option>
+                <option value="name">Name (A–Z)</option>
+              </select>
+              <button id="shuffleBtn2D" class="btn-ghost2D btn-sm2D" title="Randomize the layout">⟲ Shuffle</button>
+            </div>
+          </div>
+
+          <div id="repoStatus2D" style="display:none;"><span>⚠️ Couldn't reach the GitHub API — showing a static list instead.</span></div>
+
+          <div id="projectGrid" class="project-grid"></div>
+        </section>
+      </div>
+    </div>
+
+    <section class="grid2D-section grid2D-section-full" id="grid2DContact">
+      <h2 class="section2D-title"><span class="section2D-num">04</span> Contact</h2>
+      <p class="section2D-sub">Best way to reach me, or just poke around the code.</p>
+      <div class="contact-grid">
+        <a class="contact-card" href="https://github.com/Jayden04260" target="_blank" rel="noopener">
+          <span class="contact2D-icon">🐙</span>
+          <span class="contact2D-label">GitHub</span>
+          <span class="contact2D-value">@Jayden04260</span>
+        </a>
+        <a class="contact-card" href="mailto:jdsteadman04@gmail.com">
+          <span class="contact2D-icon">✉️</span>
+          <span class="contact2D-label">Email</span>
+          <span class="contact2D-value">jdsteadman04@gmail.com</span>
+        </a>
+        <a class="contact-card" href="https://www.linkedin.com/in/jayden-steadman-jeffrey-a6ba9a343" target="_blank" rel="noopener">
+          <span class="contact2D-icon">💼</span>
+          <span class="contact2D-label">LinkedIn</span>
+          <span class="contact2D-value">Jayden Steadman-Jeffrey</span>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer2D"><p>Built by Jayden Steadman-Jeffrey · fetched live from GitHub</p></footer>
+</div>
+
+<div id="cardModalBackdrop">
+  <div id="cardModal">
+    <button id="cardModalClose" aria-label="Close">✕</button>
+    <div id="cardModalBody"></div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+// ---------- data ----------
+const GITHUB_USER = 'Jayden04260';
+
+// hand-written — these don't live in a public repo, so GitHub has no data for them
+const FEATURED = [
+  {
+    name: 'Orion',
+    desc: 'A 3D starfield built with Python\'s Ursina engine that turns your Spotify library into a galaxy you can fly through — every track becomes a star. Pick one to play it, or jump straight into its YouTube video without leaving the scene.',
+    lang: '', url: null, featured: true,
+    badge: 'Personal project', tags: ['Python', 'Ursina', 'Spotify API', 'YouTube API']
+  },
+  {
+    name: 'Solely Tevs — Booking System',
+    desc: 'A free booking site built for a friend\'s shoe-cleaning Instagram business: service picker, photo uploads straight to Drive, automatic logging to Sheets, and confirmation emails — powered entirely by Google Apps Script.',
+    lang: '', url: null, featured: true,
+    badge: 'Client / freelance work', tags: ['Google Apps Script', 'Sheets API', 'Drive API', 'JavaScript']
+  }
+];
+
+// used only if the live GitHub fetch fails
+const STATIC_FALLBACK = [
+  { name: 'emotisense', desc: 'Multimodal emotion detection & mood-aware music recommendation, with model comparison and fairness auditing.', lang: 'Python', url: 'https://github.com/Jayden04260/emotisense' },
+  { name: 'Notes-bot', desc: 'Records both sides of a call locally and turns it into speaker-labelled notes — transcription, summary, sentiment, fully offline.', lang: 'Python', url: 'https://github.com/Jayden04260/Notes-bot' },
+  { name: 'local-rag', desc: 'A fully local retrieval-augmented generation pipeline over your own documents. No API key, nothing leaves your machine.', lang: 'Python', url: 'https://github.com/Jayden04260/local-rag' },
+  { name: 'hs-code-classifier', desc: 'Turns a free-text product description into a UK commodity code, with local retrieval, reranking, and a duty rate lookup.', lang: 'Python', url: 'https://github.com/Jayden04260/hs-code-classifier' },
+  { name: 'churnwatch', desc: 'An MLOps pipeline for churn prediction — drift detection, alerting, and retraining, deployed live on AWS.', lang: 'Python', url: 'https://github.com/Jayden04260/churnwatch' }
+];
+
+let repos = [];
+let usingFallback = false;
+let activeLang = 'All';
+let sortMode = 'updated';
+
+async function loadRepos() {
+  try {
+    // a stalled/blocked connection just hangs a fetch forever with no error — never let
+    // that block the page. Bail out to the static list if GitHub hasn't answered in 5s.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    let res;
+    try {
+      res = await fetch(`https://api.github.com/users/${GITHUB_USER}/repos?per_page=100&sort=updated`, {
+        headers: { Accept: 'application/vnd.github+json' },
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    repos = (await res.json()).filter(r => !r.fork).map(r => ({
+      name: r.name, desc: r.description || 'No description yet.', lang: r.language || '',
+      url: r.html_url, stars: r.stargazers_count || 0, pushed: r.pushed_at, featured: false
+    }));
+  } catch (e) {
+    console.warn('GitHub fetch failed or timed out, using static fallback list:', e);
+    usingFallback = true;
+    repos = STATIC_FALLBACK.map(r => ({ ...r, stars: 0, pushed: null, featured: false }));
+  }
+}
+await loadRepos();
+
+const heroSubText = `Software & ML engineer. ${repos.length + FEATURED.length} projects hang here like leaves — each one a small, working thing.`;
+document.getElementById('heroSub').textContent = heroSubText;
+document.getElementById('grid2DSub').textContent = heroSubText;
+if (usingFallback) document.getElementById('repoStatus2D').style.display = 'flex';
+
+function timeAgo2D(iso) {
+  if (!iso) return '—';
+  const diff = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days < 1) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
+// ---------- stats bar ----------
+function renderStats2D() {
+  const totalStars = repos.reduce((s, r) => s + (r.stars || 0), 0);
+  const langCounts = {};
+  repos.forEach(r => { if (r.lang) langCounts[r.lang] = (langCounts[r.lang] || 0) + 1; });
+  const topLang = Object.entries(langCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+  const mostRecent = repos.reduce((latest, r) => (r.pushed && (!latest || r.pushed > latest)) ? r.pushed : latest, null);
+  document.getElementById('stat2DRepos').textContent = repos.length;
+  document.getElementById('stat2DStars').textContent = totalStars;
+  document.getElementById('stat2DLang').textContent = topLang;
+  document.getElementById('stat2DUpdated').textContent = mostRecent ? timeAgo2D(mostRecent) : '—';
+}
+renderStats2D();
+
+// ---------- featured builds (non-GitHub projects) ----------
+const featuredGridEl = document.getElementById('featuredGrid');
+featuredGridEl.innerHTML = FEATURED.map((item) => `
+  <article class="featured-card" data-name="${item.name}" tabindex="0">
+    <span class="pc-badge">${item.badge}</span>
+    <h3>${item.name}</h3>
+    <p>${item.desc}</p>
+    <div class="tag-row2D">${(item.tags || []).map(t => `<span class="tag2D">${t}</span>`).join('')}</div>
+  </article>
+`).join('');
+featuredGridEl.querySelectorAll('.featured-card').forEach((card) => {
+  const open = () => openCardModal(FEATURED.find(f => f.name === card.dataset.name));
+  card.addEventListener('click', open);
+  card.addEventListener('keypress', (e) => { if (e.key === 'Enter') open(); });
+});
+
+// ---------- GitHub repos grid: filter chips + sort + shuffle, same pattern as the space site ----------
+function renderLangFilters2D() {
+  const langs = ['All', ...new Set(repos.map(r => r.lang).filter(Boolean))];
+  const row = document.getElementById('langFilters2D');
+  row.innerHTML = langs.map(l => `<button class="chip ${l === activeLang ? 'active' : ''}" data-lang="${l}">${l}</button>`).join('');
+  row.querySelectorAll('.chip').forEach(btn => btn.addEventListener('click', () => {
+    activeLang = btn.dataset.lang;
+    renderLangFilters2D();
+    renderRepos2D();
+  }));
+}
+renderLangFilters2D();
+
+document.getElementById('sortSelect2D').addEventListener('change', (e) => {
+  sortMode = e.target.value;
+  renderRepos2D();
+});
+document.getElementById('shuffleBtn2D').addEventListener('click', () => {
+  for (let i = repos.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [repos[i], repos[j]] = [repos[j], repos[i]];
+  }
+  renderRepos2D(true);
+});
+
+const projectGridEl = document.getElementById('projectGrid');
+function renderRepos2D(skipSort) {
+  let list = activeLang === 'All' ? repos : repos.filter(r => r.lang === activeLang);
+  if (!skipSort) {
+    list = [...list].sort((a, b) => {
+      if (sortMode === 'name') return a.name.localeCompare(b.name);
+      return new Date(b.pushed || 0) - new Date(a.pushed || 0);
+    });
+  }
+  projectGridEl.innerHTML = list.map((item) => `<div class="project-card" data-name="${item.name}" tabindex="0">
+    <h3>${item.name}</h3>
+    <p>${item.desc}</p>
+    <div class="pc-meta">${item.lang ? `<span>${item.lang}</span>` : ''}<span class="pc-updated">${timeAgo2D(item.pushed)}</span></div>
+  </div>`).join('');
+
+  // card tilt-on-hover, same technique as the space site
+  projectGridEl.querySelectorAll('.project-card').forEach((card) => {
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const px = (e.clientX - rect.left) / rect.width - 0.5;
+      const py = (e.clientY - rect.top) / rect.height - 0.5;
+      card.style.setProperty('--rx', `${py * -6}deg`);
+      card.style.setProperty('--ry', `${px * 6}deg`);
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.setProperty('--rx', '0deg');
+      card.style.setProperty('--ry', '0deg');
+    });
+    const open = () => openCardModal(list.find(r => r.name === card.dataset.name));
+    card.addEventListener('click', open);
+    card.addEventListener('keypress', (e) => { if (e.key === 'Enter') open(); });
+  });
+}
+renderRepos2D();
+
+// combined list, used by the 3D willow to hang one project orb per branch
+const ITEMS = [...FEATURED, ...repos];
+
+// nav mobile toggle
+document.getElementById('nav2DToggle')?.addEventListener('click', () => {
+  document.getElementById('nav2DLinks').classList.toggle('open');
+});
+document.querySelectorAll('.nav2D-links a').forEach(a =>
+  a.addEventListener('click', () => document.getElementById('nav2DLinks').classList.remove('open'))
+);
+
+// hero typewriter, same technique as the space site
+(function typewriter2D() {
+  const phrases = ['AI/ML engineer.', 'Multimodal systems engineer.', 'Frontier AI researcher.', 'Local-first ML pipelines.'];
+  const el = document.getElementById('typewriter2D');
+  if (!el) return;
+  let p = 0, i = 0, deleting = false;
+  function tick() {
+    const word = phrases[p];
+    el.textContent = deleting ? word.slice(0, i--) : word.slice(0, i++);
+    let delay = deleting ? 35 : 65;
+    if (!deleting && i === word.length + 1) { delay = 1400; deleting = true; }
+    else if (deleting && i < 0) { deleting = false; i = 0; p = (p + 1) % phrases.length; delay = 300; }
+    setTimeout(tick, delay);
+  }
+  tick();
+})();
+
+// click-to-expand modal — featured projects show their badge/tags, real repos fetch
+// and preview their README, same pattern as the space site's project cards
+const cardModalBackdrop = document.getElementById('cardModalBackdrop');
+const cardModalBody = document.getElementById('cardModalBody');
+async function openCardModal(item) {
+  cardModalBody.innerHTML = `
+    ${item.featured ? `<span class="pc-badge">${item.badge}</span>` : ''}
+    <h3>${item.name}</h3>
+    <div class="cm-meta">${item.featured ? (item.tags || []).join(' · ') : (item.lang || '')}</div>
+    <p>${item.desc}</p>
+    ${item.featured ? '' : '<div class="cm-readme" id="cmReadme">Loading README…</div>'}
+    ${item.url ? `<a class="cm-link" href="${item.url}" target="_blank" rel="noopener">View on GitHub →</a>` : ''}
+  `;
+  cardModalBackdrop.classList.add('open');
+  if (item.featured) return;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${item.name}/readme`, {
+      headers: { Accept: 'application/vnd.github.raw+json' }
+    });
+    const readmeEl = document.getElementById('cmReadme');
+    if (!readmeEl) return;
+    if (!res.ok) { readmeEl.textContent = 'No README found.'; return; }
+    const text = await res.text();
+    readmeEl.textContent = text.slice(0, 500) + (text.length > 500 ? '…' : '');
+  } catch {
+    const readmeEl = document.getElementById('cmReadme');
+    if (readmeEl) readmeEl.textContent = "Couldn't load README.";
+  }
+}
+function closeCardModal() { cardModalBackdrop.classList.remove('open'); }
+document.getElementById('cardModalClose').addEventListener('click', closeCardModal);
+cardModalBackdrop.addEventListener('click', (e) => { if (e.target === cardModalBackdrop) closeCardModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCardModal(); });
+
+// cursor glow, following the space site
+document.getElementById('grid2D').addEventListener('mousemove', (e) => {
+  document.getElementById('grid2DGlow').style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%,-50%)`;
+});
+
+// drifting firefly background, echoing the 3D scene's own fireflies
+(function grid2DFireflies() {
+  const canvas = document.getElementById('grid2DFireflies');
+  const ctx = canvas.getContext('2d');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let w, h, flies, mx = 0, my = 0;
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    const count = reducedMotion ? 0 : Math.min(60, Math.floor((w * h) / 22000));
+    flies = Array.from({ length: count }, () => ({
+      x: Math.random() * w, y: Math.random() * h, r: 1 + Math.random() * 1.6,
+      phase: Math.random() * Math.PI * 2, speed: 0.3 + Math.random() * 0.4
+    }));
+  }
+  window.addEventListener('resize', resize);
+  document.getElementById('grid2D').addEventListener('mousemove', (e) => {
+    mx = (e.clientX / w - 0.5) * 16;
+    my = (e.clientY / h - 0.5) * 16;
+  });
+  resize();
+  function frame(t) {
+    ctx.clearRect(0, 0, w, h);
+    for (const f of flies) {
+      const tw = 0.4 + 0.6 * Math.sin(t * 0.0015 * f.speed + f.phase);
+      const y = (f.y - t * 0.012 * f.speed) % h;
+      const yy = y < 0 ? y + h : y;
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(200,144,63,${tw * 0.8})`;
+      ctx.arc(f.x + mx, yy + my, f.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
+const grid2D = document.getElementById('grid2D');
+const backToGridBtn = document.getElementById('backToGridBtn');
+function enterForest() {
+  grid2D.style.display = 'none';
+  backToGridBtn.style.display = 'block';
+}
+document.getElementById('enterForestBtn').addEventListener('click', enterForest);
+backToGridBtn.addEventListener('click', () => {
+  grid2D.style.display = 'block';
+  backToGridBtn.style.display = 'none';
+});
+
+// mode choice — shown first, so the 3D forest isn't skipped straight past on load
+const modeChoice = document.getElementById('modeChoice');
+document.getElementById('chooseGridBtn').addEventListener('click', () => {
+  modeChoice.style.display = 'none';
+  grid2D.style.display = 'block';
+});
+document.getElementById('chooseForestBtn').addEventListener('click', () => {
+  modeChoice.style.display = 'none';
+  enterForest();
+});
+
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// ?forceDesktop lets a hybrid touchscreen-laptop visitor opt into WASD/mouse controls
+// even though the browser reports touch support
+// matchMedia('(hover: none) and (pointer: coarse)') is what actually distinguishes a
+// touch-primary phone/tablet from a laptop that merely has a touchscreen — checking just
+// maxTouchPoints/ontouchstart falsely flagged touch-capable laptops as mobile
+const IS_TOUCH = !location.search.includes('forceDesktop')
+  && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
+// ---------- time of day, matched to the visitor's own local clock ----------
+// new Date().getHours() is already local to whoever is viewing the page — no geolocation,
+// no permissions, no "which country" lookup needed. Computed once per page load (not a live
+// clock) and blended between three keyframes so it's always atmospheric, never a flat bright
+// noon that would wash out the lanterns and fireflies.
+const PALETTES = {
+  day: {
+    skyTop: 0x8ec9ea, skyHorizon: 0xf3e6c2, ground: 0x33512e, fog: 0xbfd9e6, fogDensity: 0.007,
+    hemiSky: 0x9fc9e0, hemiGround: 0x3a4a2c, hemiI: 1.05, keyColor: 0xfff6df, keyI: 1.55,
+    cloud: 1.0, fireflies: 0, lanternGlow: 0.5, birds: 1
+  },
+  dusk: {
+    skyTop: 0x2c3350, skyHorizon: 0xe8935a, ground: 0x28381f, fog: 0x5a4a3a, fogDensity: 0.011,
+    hemiSky: 0x6a5a6a, hemiGround: 0x1c2418, hemiI: 0.85, keyColor: 0xffb066, keyI: 1.35,
+    cloud: 0.6, fireflies: 0.45, lanternGlow: 0.85, birds: 0.15
+  },
+  night: {
+    skyTop: 0x0e1c20, skyHorizon: 0x28372f, ground: 0x162419, fog: 0x1a2620, fogDensity: 0.014,
+    hemiSky: 0x3c5148, hemiGround: 0x0d1512, hemiI: 0.32, keyColor: 0xffd9a0, keyI: 1.0,
+    cloud: 0.22, fireflies: 1, lanternGlow: 1, birds: 0
+  }
+};
+const COLOR_KEYS = ['skyTop', 'skyHorizon', 'ground', 'fog', 'hemiSky', 'hemiGround', 'keyColor'];
+const NUM_KEYS = ['fogDensity', 'hemiI', 'keyI', 'cloud', 'fireflies', 'lanternGlow', 'birds'];
+function blendPalettes(p1, p2, t) {
+  const out = {};
+  COLOR_KEYS.forEach(k => { out[k] = new THREE.Color(p1[k]).lerp(new THREE.Color(p2[k]), t); });
+  NUM_KEYS.forEach(k => { out[k] = p1[k] + (p2[k] - p1[k]) * t; });
+  return out;
+}
+function getTimePalette() {
+  const now = new Date();
+  const h = now.getHours() + now.getMinutes() / 60;
+  // wide flat plateaus for day and night, with transitions only near real dawn/dusk hours —
+  // a plain instant-noon peak would mean most of the actual daytime reads as "dusk"
+  const stops = [
+    { h: 0, key: 'night' }, { h: 5, key: 'night' }, { h: 7.5, key: 'dusk' },
+    { h: 10, key: 'day' }, { h: 16, key: 'day' }, { h: 18.5, key: 'dusk' },
+    { h: 21, key: 'night' }, { h: 24, key: 'night' }
+  ];
+  let a = stops[0], b = stops[1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (h >= stops[i].h && h <= stops[i + 1].h) { a = stops[i]; b = stops[i + 1]; break; }
+  }
+  const span = b.h - a.h;
+  const t = span === 0 ? 0 : (h - a.h) / span;
+  return blendPalettes(PALETTES[a.key], PALETTES[b.key], t);
+}
+const palette = getTimePalette();
+
+// ---------- renderer / scene / camera ----------
+const container = document.getElementById('scene-container');
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+} catch (e) {
+  document.getElementById('webgl-fallback').style.display = 'flex';
+  document.getElementById('loading').style.display = 'none';
+  throw e;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+// ACES filmic tone mapping is the single biggest lever for a "cinematic" look — it rolls off
+// highlights and deepens contrast instead of the flat, clipped default response
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(palette.fog.getHex(), palette.fogDensity);
+
+// keep the CSS backdrop (visible through the transparent renderer at the sky dome's edges)
+// in sync with the same palette
+const rootStyle = document.documentElement.style;
+rootStyle.setProperty('--sky-top', `#${palette.skyTop.getHexString()}`);
+rootStyle.setProperty('--sky-bottom', `#${palette.skyHorizon.getHexString()}`);
+rootStyle.setProperty('--ground', `#${palette.ground.getHexString()}`);
+
+// ---------- world scale & two control schemes ----------
+// The willow sits at the world origin. You spend most of your time walking the grove
+// in first-person (PointerLockControls); getting close to the willow hands off to the
+// orbit-and-inspect controls used for hovering/clicking its lanterns.
+const GROUND_RADIUS = 70; // walkable bounds
+const VISUAL_GROUND_RADIUS = 160; // ground mesh + distant billboard trees extend well past
+// that, out toward the sky dome, so the world doesn't just stop at a void — genuinely "endless"
+const WILLOW_ENTER_RADIUS = 16;
+const EYE_HEIGHT = 1.7;
+const WALK_SPEED = 8.5; // units/sec
+
+const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 300);
+camera.position.set(0, EYE_HEIGHT, 65); // outside the tree ring (36-60) in the clearing at the world's edge
+camera.lookAt(0, 5, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 6, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 10;
+controls.maxDistance = 34; // stay inside FOREST_CLEARING_RADIUS so zooming out can't reveal the tree wall
+controls.maxPolarAngle = Math.PI * 0.52;
+controls.enablePan = false;
+controls.enabled = false; // starts disabled — we start in walk mode, not orbit mode
+
+const flyControls = new PointerLockControls(camera, renderer.domElement);
+let mode = 'walk'; // 'walk' | 'orbit'
+const keys = { forward: false, backward: false, left: false, right: false };
+
+// ---------- post-processing ----------
+// Static, idle scenery (no per-frame physics/AI) and modern phone GPUs handle this fine —
+// no need to cripple mobile visuals for a scene this simple.
+let composer = null;
+{
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  // threshold operates on pre-tonemap linear luminance, which runs much hotter than it looks —
+  // 0.22 bloomed the entire daytime sky/ground, not just the lanterns. 0.9 keeps it to genuinely
+  // emissive things (lantern orbs, fireflies) regardless of time-of-day brightness.
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.45, 0.4, 0.9 // strength, radius, threshold
+  );
+  composer.addPass(bloomPass);
+  composer.addPass(new OutputPass());
+}
+
+// ---------- lights ----------
+const hemi = new THREE.HemisphereLight(palette.hemiSky, palette.hemiGround, palette.hemiI);
+scene.add(hemi);
+
+const key = new THREE.DirectionalLight(palette.keyColor, palette.keyI);
+key.position.set(-13, 17, 9);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -22;
+key.shadow.camera.right = 22;
+key.shadow.camera.top = 22;
+key.shadow.camera.bottom = -22;
+key.shadow.camera.far = 60;
+key.shadow.bias = -0.0015;
+scene.add(key);
+
+const rim = new THREE.DirectionalLight(0x6fa0c8, 0.35);
+rim.position.set(6, 5, -8);
+scene.add(rim);
+
+// ---------- sky dome ----------
+// A CSS gradient behind a transparent canvas doesn't respond to camera pitch — looking up
+// while walking just shows the same flat backdrop. A real vertex-gradient dome inside the
+// scene fixes that: it's proper 3D, so tilting your head actually reveals more sky/horizon.
+function buildSkyDome() {
+  const geo = new THREE.SphereGeometry(160, 24, 16);
+  const pos = geo.attributes.position;
+  const colors = [];
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const yn = THREE.MathUtils.clamp((pos.getY(i) / 160 + 0.12) / 1.12, 0, 1);
+    c.copy(palette.skyHorizon).lerp(palette.skyTop, yn);
+    colors.push(c.r, c.g, c.b);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false });
+  scene.add(new THREE.Mesh(geo, mat));
+}
+buildSkyDome();
+
+// ---------- clouds ----------
+function makeCloudTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  for (let i = 0; i < 6; i++) {
+    const x = 24 + Math.random() * 80, y = 44 + Math.random() * 40, r = 18 + Math.random() * 24;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  return new THREE.CanvasTexture(c);
+}
+function buildClouds(count) {
+  const tex = makeCloudTexture();
+  const tint = new THREE.Color(0xffffff).lerp(new THREE.Color(0x30405a), 1 - palette.cloud);
+  for (let i = 0; i < count; i++) {
+    const mat = new THREE.SpriteMaterial({
+      map: tex, transparent: true, depthWrite: false, fog: false,
+      opacity: 0.4 + palette.cloud * 0.35, color: tint
+    });
+    const s = new THREE.Sprite(mat);
+    const scale = 20 + Math.random() * 26;
+    s.scale.set(scale, scale * 0.5, 1);
+    const angle = Math.random() * Math.PI * 2, dist = 65 + Math.random() * 75;
+    s.position.set(Math.cos(angle) * dist, 32 + Math.random() * 22, Math.sin(angle) * dist);
+    scene.add(s);
+  }
+}
+buildClouds(14);
+
+// ---------- birds (daytime only — fade out with the palette) ----------
+function makeBirdTexture() {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 32;
+  const ctx = c.getContext('2d');
+  ctx.strokeStyle = 'rgba(30,26,20,0.85)';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(4, 16);
+  ctx.quadraticCurveTo(20, 0, 32, 10);
+  ctx.quadraticCurveTo(44, 0, 60, 16);
+  ctx.stroke();
+  return new THREE.CanvasTexture(c);
+}
+const birds = [];
+function buildBirds(count) {
+  if (palette.birds <= 0.02) return;
+  const tex = makeBirdTexture();
+  for (let i = 0; i < count; i++) {
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, opacity: palette.birds });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(1.8, 0.9, 1);
+    scene.add(sprite);
+    birds.push({
+      sprite, radius: 26 + Math.random() * 38, height: 15 + Math.random() * 11,
+      speed: 0.05 + Math.random() * 0.05, phase: Math.random() * Math.PI * 2, dir: Math.random() > 0.5 ? 1 : -1
+    });
+  }
+}
+buildBirds(9);
+
+// ---------- ground ----------
+function makeGrassTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256, len = 2 + Math.random() * 5;
+    // kept fairly light (0.75-1.0) since this multiplies against the day/night ground color —
+    // dark streaks here would double-darken the palette rather than just adding texture
+    const shade = Math.round((0.75 + Math.random() * 0.25) * 255);
+    ctx.strokeStyle = `rgba(${shade},${shade},${shade},0.55)`;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (Math.random() - 0.5) * 2, y - len);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(56, 56);
+  return tex;
+}
+const groundGeo = new THREE.CircleGeometry(VISUAL_GROUND_RADIUS, 96);
+const groundMat = new THREE.MeshStandardMaterial({ map: makeGrassTexture(), color: palette.ground, roughness: 1, metalness: 0 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// subtle ground ring texture via vertex color variance
+{
+  const ringGeo = new THREE.RingGeometry(0.01, VISUAL_GROUND_RADIUS - 0.1, 96, 32);
+  const pos = ringGeo.attributes.position;
+  const colors = [];
+  const base = palette.ground.clone();
+  const alt = palette.ground.clone().offsetHSL(0, 0.05, 0.04);
+  for (let i = 0; i < pos.count; i++) {
+    const r = Math.hypot(pos.getX(i), pos.getY(i));
+    const n = (Math.sin(r * 1.3) + 1) / 2;
+    const c = base.clone().lerp(alt, n * 0.5 + Math.random() * 0.15);
+    colors.push(c.r, c.g, c.b);
+  }
+  ringGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  const ringMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.005;
+  ring.receiveShadow = true;
+  scene.add(ring);
+}
+
+// ---------- filler grove trees: procedural shapes (cheap, same as before) but with real
+// photographed PBR textures (bark + forest-leaves, CC0 via Poly Haven) instead of the
+// canvas-drawn patterns — and a less geometrically "clean" silhouette: a bent trunk, low
+// radial-segment canopy tiers (visibly polygonal rather than a smooth cone), offset/rotated
+// per tier, plus a handful of protruding branch stubs so it doesn't read as a stacked cone.
+// Deliberately NOT applied to the willow — that stays exactly as its own hand-built design.
+const FOREST_CLEARING_RADIUS = 36;
+
+function loadTiledTexture(url, repeatX, repeatY, isColor) {
+  const t = new THREE.TextureLoader().load(url);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repeatX, repeatY);
+  if (isColor) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const fillerBarkMat = new THREE.MeshStandardMaterial({
+  map: loadTiledTexture('./vendor/textures/bark/diff.jpg', 2, 3, true),
+  normalMap: loadTiledTexture('./vendor/textures/bark/nor.jpg', 2, 3, false),
+  roughnessMap: loadTiledTexture('./vendor/textures/bark/arm.jpg', 2, 3, false),
+  metalnessMap: loadTiledTexture('./vendor/textures/bark/arm.jpg', 2, 3, false),
+  roughness: 1, metalness: 1
+});
+const fillerLeafMat = new THREE.MeshStandardMaterial({
+  map: loadTiledTexture('./vendor/textures/leaves/diff.jpg', 2, 2, true),
+  normalMap: loadTiledTexture('./vendor/textures/leaves/nor.jpg', 2, 2, false),
+  roughnessMap: loadTiledTexture('./vendor/textures/leaves/arm.jpg', 2, 2, false),
+  metalnessMap: loadTiledTexture('./vendor/textures/leaves/arm.jpg', 2, 2, false),
+  roughness: 1, metalness: 1
+});
+
+// Builds one tree at local origin and returns it as a Group — used both to place real trees
+// in the scene and, separately, to render one into a baked billboard texture for the distant
+// "endless" ring (see bakeTreeBillboardTexture below).
+function makeFillerTreeGroup(sizeT) {
+  const group = new THREE.Group();
+  const trunkH = 2.2 + sizeT * 6.6;
+  const trunkR = 0.17 + sizeT * 0.36; // thicker — width wasn't scaling with height, so the tallest trees looked like toothpicks
+  const bendAmt = (Math.random() - 0.5) * 0.6; // real trunks aren't perfectly straight
+
+  const trunkGeo = new THREE.CylinderGeometry(trunkR * 0.55, trunkR, trunkH, 7, 4);
+  {
+    const pos = trunkGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i) + trunkH / 2;
+      pos.setX(i, pos.getX(i) + Math.sin((y / trunkH) * Math.PI * 0.5) * bendAmt);
+    }
+    trunkGeo.computeVertexNormals();
+  }
+  const trunk = new THREE.Mesh(trunkGeo, fillerBarkMat);
+  trunk.position.y = trunkH / 2;
+  trunk.castShadow = true;
+  trunk.receiveShadow = true;
+  group.add(trunk);
+
+  const trunkPointAt = (h) => new THREE.Vector3(Math.sin((h / trunkH) * Math.PI * 0.5) * bendAmt, h, 0);
+
+  // a handful of protruding branch stubs, angled outward, so the tree doesn't read as a
+  // perfectly stacked cone — shares the trunk's bark material
+  const stubGeoms = [];
+  const stubCount = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < stubCount; i++) {
+    const h = trunkH * 0.45 + Math.random() * trunkH * 0.5;
+    const base = trunkPointAt(Math.min(h, trunkH));
+    const ang = Math.random() * Math.PI * 2;
+    const len = 0.35 + Math.random() * 0.45;
+    const stubR = Math.max(trunkR * 0.28, 0.015);
+    const g = new THREE.CylinderGeometry(stubR * 0.3, stubR, len, 4);
+    g.rotateZ((Math.random() > 0.5 ? 1 : -1) * (Math.PI * 0.32 + Math.random() * 0.15));
+    g.rotateY(ang);
+    g.translate(base.x + Math.cos(ang) * len * 0.4, h, base.z + Math.sin(ang) * len * 0.4);
+    stubGeoms.push(g);
+  }
+  if (stubGeoms.length) {
+    const stubs = new THREE.Mesh(mergeGeometries(stubGeoms), fillerBarkMat);
+    stubs.castShadow = true;
+    group.add(stubs);
+  }
+
+  // canopy: low radial-segment cones (visibly polygonal, not a smooth circle) — each tier
+  // independently rotated and slightly offset from the trunk's centerline, which breaks up
+  // the "perfectly stacked cone" look without resorting to per-vertex noise (tried that on
+  // the old version; independent per-vertex jitter on dense geometry just looks like static)
+  const tiers = 3 + Math.floor(Math.random() * 2);
+  const canopyH = 4 + sizeT * 8.5;
+  const baseR = 1.15 + sizeT * 1.35; // wider, and scales up faster with height so tall trees stay proportional instead of getting skinnier
+  const canopyGeoms = [];
+  let y = trunkH - 0.3;
+  for (let i = 0; i < tiers; i++) {
+    const f = i / tiers;
+    const tierH = (canopyH / tiers) * (1.25 - f * 0.4);
+    const tierR = baseR * (1 - f * 0.68);
+    const segs = 5 + Math.floor(Math.random() * 3);
+    const g = new THREE.ConeGeometry(tierR, tierH, segs);
+    g.rotateY(Math.random() * Math.PI * 2);
+    const base = trunkPointAt(y);
+    g.translate(base.x + (Math.random() - 0.5) * 0.15, y + tierH / 2, base.z + (Math.random() - 0.5) * 0.15);
+    canopyGeoms.push(g);
+    y += tierH * 0.58;
+  }
+  const canopy = new THREE.Mesh(mergeGeometries(canopyGeoms), fillerLeafMat);
+  canopy.castShadow = true;
+  canopy.receiveShadow = true;
+  group.add(canopy);
+
+  group.userData.height = trunkH + canopyH;
+  return group;
+}
+
+// filler trees sway with the same wind gust that already moves the willow — rotating each
+// whole group about its base (trunk starts at local y=0) reads as a natural lean, and it's
+// just a per-frame rotation update on existing groups, no new geometry or draw calls
+const swayTrees = [];
+function buildFillerTree(x, z) {
+  const group = makeFillerTreeGroup(Math.random());
+  group.position.set(x, 0, z);
+  scene.add(group);
+  swayTrees.push({ group, phase: Math.random() * Math.PI * 2, amp: 0.5 + Math.random() * 0.7 });
+}
+
+function scatterFillerTrees(count) {
+  let placed = 0, attempts = 0;
+  while (placed < count && attempts < count * 10) {
+    attempts++;
+    const angle = Math.random() * Math.PI * 2;
+    // stop well short of GROUND_RADIUS so there's a walkable clearing at the world's edge too —
+    // that's also where the player spawns, and needs to start outside the tree ring, not in it
+    const dist = FOREST_CLEARING_RADIUS + Math.random() * (GROUND_RADIUS - FOREST_CLEARING_RADIUS - 10);
+    buildFillerTree(Math.cos(angle) * dist, Math.sin(angle) * dist);
+    placed++;
+  }
+}
+scatterFillerTrees(240);
+
+// ---------- understory: bushes + fallen logs ----------
+// Isolated trunks rising out of flat grass never reads as "forest" — a forest floor has
+// clutter at eye level. These are small and cheap: a handful of merged spheres per bush
+// (smooth, low-subdivision — the earlier per-vertex-noise experiment looked like static,
+// so overlapping smooth blobs is what actually gives an organic look here).
+function buildBush(x, z) {
+  const scale = 0.35 + Math.random() * 0.55;
+  const clusters = 3 + Math.floor(Math.random() * 3);
+  const geoms = [];
+  for (let i = 0; i < clusters; i++) {
+    const r = (0.35 + Math.random() * 0.3) * scale;
+    const g = new THREE.IcosahedronGeometry(r, 1);
+    g.translate((Math.random() - 0.5) * scale, r * 0.7 + Math.random() * 0.2 * scale, (Math.random() - 0.5) * scale);
+    geoms.push(g);
+  }
+  const bush = new THREE.Mesh(mergeGeometries(geoms), fillerLeafMat);
+  bush.position.set(x, 0, z);
+  bush.castShadow = true;
+  bush.receiveShadow = true;
+  scene.add(bush);
+}
+
+function buildFallenLog(x, z) {
+  const len = 1.4 + Math.random() * 2.2;
+  const r = 0.1 + Math.random() * 0.14;
+  const log = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.85, r, len, 6), fillerBarkMat);
+  log.rotation.z = Math.PI / 2;
+  log.rotation.y = Math.random() * Math.PI * 2;
+  log.position.set(x, r * 0.8, z);
+  log.castShadow = true;
+  log.receiveShadow = true;
+  scene.add(log);
+}
+
+function scatterUnderstory(bushCount, logCount) {
+  for (let i = 0; i < bushCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = FOREST_CLEARING_RADIUS - 4 + Math.random() * (GROUND_RADIUS - FOREST_CLEARING_RADIUS - 2);
+    buildBush(Math.cos(angle) * dist, Math.sin(angle) * dist);
+  }
+  for (let i = 0; i < logCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = FOREST_CLEARING_RADIUS + Math.random() * (GROUND_RADIUS - FOREST_CLEARING_RADIUS - 10);
+    buildFallenLog(Math.cos(angle) * dist, Math.sin(angle) * dist);
+  }
+}
+scatterUnderstory(160, 35);
+
+// ---------- near-distant forest: real trees a bit past the main grove, same as always ----------
+const NEAR_DISTANT_OUTER = 108;
+function scatterDistantForest(count) {
+  let placed = 0, attempts = 0;
+  while (placed < count && attempts < count * 10) {
+    attempts++;
+    const angle = Math.random() * Math.PI * 2;
+    const dist = (GROUND_RADIUS - 6) + Math.random() * (NEAR_DISTANT_OUTER - (GROUND_RADIUS - 6));
+    buildFillerTree(Math.cos(angle) * dist, Math.sin(angle) * dist);
+    placed++;
+  }
+}
+scatterDistantForest(150);
+
+// ---------- endless forest: past NEAR_DISTANT_OUTER, real 3D trees stop paying for
+// themselves — instead, actual tree-SHAPED flat geometry (a jagged pine silhouette, built
+// directly as a polygon, not a rectangle relying on image transparency), textured with the
+// same real bark/leaf photos as every other tree in the scene. Two crossed planes per tree
+// so it reads reasonably from any angle without needing to track the camera every frame.
+// All instances share one InstancedMesh per part — the whole "endless" field costs 2 draw
+// calls total, however many trees are in it.
+function scatterEndlessBillboards(count) {
+  const refH = 1;
+  const w = refH * 0.46; // widened to match the thickened real trees — was too skinny
+  const shape = new THREE.Shape();
+  shape.moveTo(0, refH * 0.12);
+  shape.lineTo(-w * 0.55, refH * 0.12);
+  shape.lineTo(-w * 0.15, refH * 0.42);
+  shape.lineTo(-w * 0.45, refH * 0.42);
+  shape.lineTo(-w * 0.1, refH * 0.68);
+  shape.lineTo(-w * 0.32, refH * 0.68);
+  shape.lineTo(0, refH);
+  shape.lineTo(w * 0.32, refH * 0.68);
+  shape.lineTo(w * 0.1, refH * 0.68);
+  shape.lineTo(w * 0.45, refH * 0.42);
+  shape.lineTo(w * 0.15, refH * 0.42);
+  shape.lineTo(w * 0.55, refH * 0.12);
+  shape.lineTo(0, refH * 0.12);
+  const canopyGeo = new THREE.ShapeGeometry(shape);
+  const trunkGeo = new THREE.PlaneGeometry(refH * 0.045, refH * 0.14);
+  trunkGeo.translate(0, refH * 0.07, 0);
+
+  // 4 planes at 45° apart instead of 2 at 90° — with only 2, there's a viewing angle roughly
+  // halfway between them where you're looking at both nearly edge-on and every tree looks
+  // thin. 4 planes halve that worst-case angle; still cheap since it's just more instances
+  // in the same InstancedMesh, not more draw calls.
+  const planeAngles = [0, Math.PI / 4, Math.PI / 2, Math.PI * 0.75];
+  const totalInstances = count * planeAngles.length;
+  const canopyMesh = new THREE.InstancedMesh(canopyGeo, fillerLeafMat, totalInstances);
+  const trunkMesh = new THREE.InstancedMesh(trunkGeo, fillerBarkMat, totalInstances);
+
+  const m = new THREE.Matrix4();
+  let idx = 0;
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = NEAR_DISTANT_OUTER + Math.random() * (VISUAL_GROUND_RADIUS - NEAR_DISTANT_OUTER - 15);
+    const h = 6 + Math.random() * 9;
+    const px = Math.cos(angle) * dist, pz = Math.sin(angle) * dist;
+    const baseRotY = Math.random() * Math.PI * 2;
+    for (const extra of planeAngles) {
+      m.compose(
+        new THREE.Vector3(px, 0, pz),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), baseRotY + extra),
+        new THREE.Vector3(h, h, h) // uniform scale — was (1,h,1), so width stayed fixed while
+        // height varied per instance, making taller distant trees look increasingly skinny
+      );
+      canopyMesh.setMatrixAt(idx, m);
+      trunkMesh.setMatrixAt(idx, m);
+      idx++;
+    }
+  }
+  canopyMesh.instanceMatrix.needsUpdate = true;
+  trunkMesh.instanceMatrix.needsUpdate = true;
+  scene.add(canopyMesh, trunkMesh);
+}
+scatterEndlessBillboards(900);
+
+// ---------- bark texture ----------
+function makeBarkTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#3c2c22';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 900; i++) {
+    const x = Math.random() * 256;
+    const h = 10 + Math.random() * 60;
+    const y = Math.random() * 256;
+    const shade = Math.random() * 30 - 15;
+    ctx.strokeStyle = `rgba(${60 + shade}, ${42 + shade}, ${30 + shade}, ${0.25 + Math.random() * 0.35})`;
+    ctx.lineWidth = 0.6 + Math.random() * 1.4;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (Math.random() - 0.5) * 6, y + h);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 4);
+  return tex;
+}
+const barkTexture = makeBarkTexture();
+const barkMat = new THREE.MeshStandardMaterial({ map: barkTexture, roughness: 0.95, color: 0x8a7867 });
+
+// ---------- trunk & branches (recursive, tapered) ----------
+const branchTips = []; // { position: Vector3, direction: Vector3 }
+const trunkGroup = new THREE.Group();
+scene.add(trunkGroup);
+
+const MAX_DEPTH = 5; // limb -> bough -> branch -> switch -> twig — real willow depth
+const barkGeometries = [];
+
+function addTaperedSegment(p0, p1, r0, r1) {
+  const dir = new THREE.Vector3().subVectors(p1, p0);
+  const len = dir.length();
+  const geo = new THREE.CylinderGeometry(r1, r0, len, 7, 1, false);
+  geo.translate(0, len / 2, 0);
+  const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  geo.applyMatrix4(new THREE.Matrix4().compose(p0, quat, new THREE.Vector3(1, 1, 1)));
+  barkGeometries.push(geo);
+}
+
+function growBranch(start, dir, radius, remainingLength, depth) {
+  const segments = 5;
+  let pos = start.clone();
+  let d = dir.clone().normalize();
+  const segLen = remainingLength / segments;
+  let r = radius;
+  const taper = depth === 0 ? 0.94 : 0.85; // keep the true trunk columnar and thick for longer
+
+  // real willow limbs rise near the trunk, then arc over and droop as they get thinner —
+  // the vertical bias goes from strongly upward (depth 0) to clearly downward (depth 3+)
+  const verticalBias = 0.18 - depth * 0.095;
+
+  for (let i = 0; i < segments; i++) {
+    d.x += (Math.random() - 0.5) * 0.26;
+    d.z += (Math.random() - 0.5) * 0.26;
+    d.y += verticalBias;
+    d.normalize();
+    const next = pos.clone().addScaledVector(d, segLen);
+    const rNext = r * taper;
+    addTaperedSegment(pos, next, r, rNext);
+    pos = next;
+    r = rNext;
+  }
+
+  if (depth < MAX_DEPTH) {
+    const branches = depth === 0 ? 7 : (2 + Math.floor(Math.random() * (depth < 3 ? 2 : 1.3)));
+    for (let b = 0; b < branches; b++) {
+      const spread = 1.0 + depth * 0.32; // wider dome the further out we go
+      const nd = d.clone();
+      const angle = (b / branches) * Math.PI * 2 + Math.random();
+      nd.x += Math.cos(angle) * spread;
+      nd.z += Math.sin(angle) * spread;
+      nd.y += 0.1 + Math.random() * 0.15;
+      nd.normalize();
+      growBranch(pos.clone(), nd, r * 0.85, remainingLength * 0.67, depth + 1);
+    }
+  } else {
+    branchTips.push({ position: pos.clone(), direction: d.clone() });
+  }
+}
+
+// trunk base — thick and tall, a big mature willow, not a sapling
+growBranch(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0), 1.25, 9.4, 0);
+
+{
+  const mergedBarkGeo = mergeGeometries(barkGeometries);
+  const trunkMesh = new THREE.Mesh(mergedBarkGeo, barkMat);
+  trunkMesh.castShadow = true;
+  trunkMesh.receiveShadow = true;
+  trunkGroup.add(trunkMesh);
+}
+
+// ---------- leaf texture ----------
+function makeLeafTexture() {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 64, 128);
+  const grad = ctx.createLinearGradient(0, 0, 0, 128);
+  grad.addColorStop(0, '#7c9463');
+  grad.addColorStop(1, '#3f5a3e');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(32, 0);
+  ctx.quadraticCurveTo(58, 40, 32, 128);
+  ctx.quadraticCurveTo(6, 40, 32, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(20,30,15,0.35)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(32, 4);
+  ctx.lineTo(32, 124);
+  ctx.stroke();
+  return new THREE.CanvasTexture(c);
+}
+const leafTexture = makeLeafTexture();
+const leafMaterial = new THREE.SpriteMaterial({ map: leafTexture, transparent: true, depthWrite: false });
+
+// ---------- glow texture for lanterns ----------
+function makeGlowTexture() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255, 224, 160, 0.95)');
+  g.addColorStop(0.35, 'rgba(232, 176, 84, 0.55)');
+  g.addColorStop(1, 'rgba(232, 176, 84, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+const glowTexture = makeGlowTexture();
+
+// ---------- label sprite (repo name) ----------
+function makeLabelSprite(text) {
+  const scale = 4;
+  const fontSpec = '500 22px "IBM Plex Mono", monospace';
+  // the canvas used to be a fixed 320px wide regardless of the actual name — longer project
+  // names (e.g. "Solely Tevs — Booking System") just got cut off mid-text, while the sprite's
+  // world-space size was still computed from the full intended width, stretching the cut-off
+  // glyphs oddly. Measure first, then size the canvas exactly to fit whatever the text is.
+  const measureCtx = document.createElement('canvas').getContext('2d');
+  measureCtx.font = fontSpec;
+  const textWidth = measureCtx.measureText(text).width;
+
+  const padX = 10, h = 32;
+  const w = Math.ceil(textWidth) + padX * 2;
+  const c = document.createElement('canvas');
+  c.width = w * scale; c.height = h * scale;
+  const ctx = c.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.font = fontSpec;
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(238, 240, 228, 0.95)';
+  ctx.fillText(text, padX, h / 2);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.anisotropy = 4;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0 });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(w * 0.024, h * 0.024, 1); // same px->world factor on both axes, so text isn't stretched
+  return sprite;
+}
+
+// ---------- strands hanging from branch tips ----------
+const strandGroups = []; // for idle sway
+const lanternHitObjects = []; // meshes for raycasting -> {mesh, repo, glow, label}
+
+function buildStrand(tip, dropLen, addLantern, repo) {
+  const group = new THREE.Group();
+  group.position.copy(tip.position);
+  trunkGroup.add(group);
+  strandGroups.push({ group, phase: Math.random() * Math.PI * 2, amp: 0.02 + Math.random() * 0.02 });
+
+  const swayX = (Math.random() - 0.5) * 0.6;
+  const swayZ = (Math.random() - 0.5) * 0.6;
+  const points = [];
+  const segs = 10;
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const y = -dropLen * Math.pow(t, 1.35);
+    const x = swayX * Math.sin(t * Math.PI * 0.5) * t;
+    const z = swayZ * Math.sin(t * Math.PI * 0.5) * t;
+    points.push(new THREE.Vector3(x, y, z));
+  }
+  const curve = new THREE.CatmullRomCurve3(points);
+  const tubeGeo = new THREE.TubeGeometry(curve, 12, 0.012, 4, false);
+  const tubeMat = new THREE.MeshStandardMaterial({ color: 0x4a5a3a, roughness: 0.9 });
+  const tube = new THREE.Mesh(tubeGeo, tubeMat);
+  tube.castShadow = true;
+  group.add(tube);
+
+  const leafCount = 7 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < leafCount; i++) {
+    const t = 0.12 + (i / leafCount) * 0.88;
+    const p = curve.getPoint(t);
+    // each leaf needs its own material instance — sharing leafMaterial directly meant
+    // every sprite's .rotation write clobbered the same object, so the whole tree's
+    // leaves all ended up rendering at whatever rotation was set last
+    const leaf = new THREE.Sprite(leafMaterial.clone());
+    const s = 0.2 + Math.random() * 0.16;
+    leaf.scale.set(s * 0.55, s, 1);
+    leaf.position.copy(p);
+    leaf.position.x += (Math.random() - 0.5) * 0.18;
+    leaf.position.z += (Math.random() - 0.5) * 0.18;
+    leaf.position.y += (Math.random() - 0.5) * 0.1;
+    leaf.material.rotation = Math.random() * Math.PI;
+    group.add(leaf);
+  }
+
+  if (addLantern && repo) {
+    const t = 0.78 + Math.random() * 0.14;
+    const p = curve.getPoint(t);
+    const big = !!repo.featured;
+
+    const orbGeo = new THREE.SphereGeometry(big ? 0.09 : 0.06, 16, 16);
+    const orbColor = big ? 0xf0b878 : 0xe8b054;
+    const orbMat = new THREE.MeshStandardMaterial({
+      color: orbColor, emissive: orbColor, emissiveIntensity: big ? 1.7 : 1.4, roughness: 0.4
+    });
+    const orb = new THREE.Mesh(orbGeo, orbMat);
+    orb.position.copy(p);
+    group.add(orb);
+
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTexture, transparent: true, depthWrite: false, opacity: 0.85, blending: THREE.AdditiveBlending
+    }));
+    const glowScale = big ? 0.85 : 0.55;
+    glow.scale.set(glowScale, glowScale, 1);
+    glow.position.copy(p);
+    group.add(glow);
+
+    const hitGeo = new THREE.SphereGeometry(0.22, 12, 12);
+    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    const hit = new THREE.Mesh(hitGeo, hitMat);
+    hit.position.copy(p);
+    group.add(hit);
+
+    const label = makeLabelSprite(repo.name);
+    label.position.copy(p).add(new THREE.Vector3(0, 0.28, 0));
+    group.add(label);
+
+    lanternHitObjects.push({ hit, orb, glow, label, repo, baseScale: glow.scale.x });
+  }
+}
+
+// distribute strands across tips, spreading the repo lanterns among distinct tips.
+// Drop length is relative to each tip's own height and how far out toward the canopy's
+// edge it sits — outer, higher tips cascade almost to the ground, like a real willow curtain;
+// inner, lower tips droop only a little. Never let a strand pass through the ground.
+const CANOPY_RADIUS = 14;
+const shuffledTips = [...branchTips].sort(() => Math.random() - 0.5);
+let repoIndex = 0;
+shuffledTips.forEach((tip, i) => {
+  const horiz = Math.hypot(tip.position.x, tip.position.z);
+  const outerness = THREE.MathUtils.clamp(horiz / CANOPY_RADIUS, 0, 1);
+  const reach = 0.48 + outerness * 0.62; // fraction of the tip's height the strand falls
+  const strandsHere = 3 + Math.floor(Math.random() * 2);
+  for (let s = 0; s < strandsHere; s++) {
+    const wanted = tip.position.y * reach + Math.random() * 0.7;
+    const dropLen = Math.min(wanted, Math.max(tip.position.y - 0.3, 0.9));
+    const giveLantern = repoIndex < ITEMS.length && s === 0 && i % Math.ceil(shuffledTips.length / ITEMS.length) === 0;
+    if (giveLantern) {
+      buildStrand(tip, Math.min(dropLen + 0.5, Math.max(tip.position.y - 0.3, 0.9)), true, ITEMS[repoIndex]);
+      repoIndex++;
+    } else {
+      buildStrand(tip, dropLen, false, null);
+    }
+  }
+});
+// safety net: place any un-placed items on remaining tips
+while (repoIndex < ITEMS.length && shuffledTips.length) {
+  const tip = shuffledTips[Math.floor(Math.random() * shuffledTips.length)];
+  buildStrand(tip, Math.max(tip.position.y - 0.3, 0.9), true, ITEMS[repoIndex]);
+  repoIndex++;
+}
+
+trunkGroup.position.y = 0;
+
+// ---------- ambient fireflies ----------
+const fireflyCount = REDUCED_MOTION ? 0 : 46;
+const fireflyGeo = new THREE.BufferGeometry();
+const fPos = new Float32Array(fireflyCount * 3);
+for (let i = 0; i < fireflyCount; i++) {
+  fPos[i * 3] = (Math.random() - 0.5) * 22;
+  fPos[i * 3 + 1] = 0.5 + Math.random() * 10;
+  fPos[i * 3 + 2] = (Math.random() - 0.5) * 22;
+}
+fireflyGeo.setAttribute('position', new THREE.BufferAttribute(fPos, 3));
+const fireflyMat = new THREE.PointsMaterial({
+  size: 0.06, map: glowTexture, transparent: true, depthWrite: false,
+  blending: THREE.AdditiveBlending, color: 0xe8c37a, opacity: 0.85 * palette.fireflies
+});
+const fireflies = new THREE.Points(fireflyGeo, fireflyMat);
+scene.add(fireflies);
+
+// ---------- interaction ----------
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+const tooltip = document.getElementById('tooltip');
+let hovered = null;
+
+function setHover(entry) {
+  if (hovered === entry) return;
+  if (hovered) {
+    hovered.glow.material.opacity = 0.85;
+    hovered.glow.scale.set(hovered.baseScale, hovered.baseScale, 1);
+    hovered.label.material.opacity = 0;
+    hovered.orb.material.emissiveIntensity = 1.4;
+  }
+  hovered = entry;
+  if (hovered) {
+    hovered.glow.material.opacity = 1;
+    hovered.glow.scale.set(hovered.baseScale * 1.5, hovered.baseScale * 1.5, 1);
+    hovered.label.material.opacity = 1;
+    hovered.orb.material.emissiveIntensity = hovered.repo.featured ? 2.7 : 2.4;
+    renderer.domElement.style.cursor = hovered.repo.url ? 'pointer' : 'default';
+    tooltip.querySelector('.repo-name').textContent = hovered.repo.name;
+    tooltip.querySelector('.repo-desc').textContent = hovered.repo.desc;
+    tooltip.querySelector('.repo-lang').textContent = hovered.repo.featured
+      ? hovered.repo.badge + (hovered.repo.tags?.length ? ' · ' + hovered.repo.tags.join(', ') : '')
+      : hovered.repo.lang;
+    tooltip.classList.add('visible');
+  } else {
+    renderer.domElement.style.cursor = 'default';
+    tooltip.classList.remove('visible');
+  }
+}
+
+function onPointerMove(e) {
+  if (mode !== 'orbit') return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hits = raycaster.intersectObjects(lanternHitObjects.map(o => o.hit));
+  if (hits.length) {
+    const entry = lanternHitObjects.find(o => o.hit === hits[0].object);
+    tooltip.classList.remove('pinned'); // a real hover always takes over from browse-nav
+    setHover(entry);
+    tooltip.style.left = e.clientX + 'px';
+    tooltip.style.top = e.clientY + 'px';
+  } else if (!tooltip.classList.contains('pinned')) {
+    setHover(null);
+  }
+}
+
+renderer.domElement.addEventListener('pointermove', onPointerMove);
+renderer.domElement.addEventListener('pointerleave', () => { if (mode === 'orbit') setHover(null); });
+
+renderer.domElement.addEventListener('click', () => {
+  if (mode === 'walk') {
+    // clicking toggles pointer lock — otherwise the mouse stays captured for camera
+    // look with no way back to a normal, clickable cursor short of hitting Escape
+    if (!IS_TOUCH) {
+      if (flyControls.isLocked) flyControls.unlock();
+      else safeLock();
+    }
+  } else if (hovered && hovered.repo.url) {
+    window.open(hovered.repo.url, '_blank', 'noopener');
+  }
+});
+
+// touch tap-to-inspect a lantern (orbit mode only — walking uses the joystick + drag-look instead)
+renderer.domElement.addEventListener('touchstart', (e) => {
+  if (mode !== 'orbit' || !e.touches.length) return;
+  const t = e.touches[0];
+  onPointerMove({ clientX: t.clientX, clientY: t.clientY });
+}, { passive: true });
+
+// ---------- walking ----------
+const hint = document.getElementById('hint');
+const crosshair = document.getElementById('crosshair');
+const lockPrompt = document.getElementById('lockPrompt');
+const leaveBtn = document.getElementById('leaveBtn');
+const joystickBase = document.getElementById('joystickBase');
+const joystickKnob = document.getElementById('joystickKnob');
+const WALK_HINT = IS_TOUCH
+  ? 'Drag the joystick to walk, drag anywhere else to look around — find your way to the willow.'
+  : 'Click to walk. WASD to move, mouse to look around, click again to free your cursor.';
+const ORBIT_HINT = IS_TOUCH
+  ? 'Drag to orbit · pinch to zoom · tap a lantern to open it on GitHub.'
+  : 'Drag to orbit · scroll to zoom · hover a lantern, click to open it on GitHub.';
+hint.textContent = WALK_HINT;
+
+if (IS_TOUCH) {
+  lockPrompt.style.display = 'none';
+  joystickBase.style.display = 'block';
+} else {
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.forward = true;
+    else if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.backward = true;
+    else if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+    else if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.forward = false;
+    else if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.backward = false;
+    else if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+    else if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+  });
+
+  flyControls.addEventListener('lock', () => {
+    lockPrompt.style.display = 'none';
+    crosshair.style.display = 'block';
+  });
+  flyControls.addEventListener('unlock', () => {
+    crosshair.style.display = 'none';
+    if (mode === 'walk') lockPrompt.style.display = 'block';
+  });
+}
+
+// ---------- touch look (drag anywhere outside the joystick to look around) ----------
+const touchEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+let lookTouchId = null, lastTouchX = 0, lastTouchY = 0;
+const joystick = { active: false, dx: 0, dy: 0 };
+if (IS_TOUCH) {
+  renderer.domElement.addEventListener('touchstart', (e) => {
+    if (mode !== 'walk' || lookTouchId !== null) return;
+    const t = e.changedTouches[0];
+    lookTouchId = t.identifier;
+    lastTouchX = t.clientX; lastTouchY = t.clientY;
+    touchEuler.setFromQuaternion(camera.quaternion);
+  }, { passive: true });
+  renderer.domElement.addEventListener('touchmove', (e) => {
+    if (mode !== 'walk') return;
+    for (const t of e.changedTouches) {
+      if (t.identifier !== lookTouchId) continue;
+      const dx = t.clientX - lastTouchX, dy = t.clientY - lastTouchY;
+      lastTouchX = t.clientX; lastTouchY = t.clientY;
+      touchEuler.y -= dx * 0.0035;
+      touchEuler.x = Math.max(-1.3, Math.min(1.3, touchEuler.x - dy * 0.0035));
+      camera.quaternion.setFromEuler(touchEuler);
+    }
+  }, { passive: true });
+  const releaseLookTouch = (e) => {
+    for (const t of e.changedTouches) if (t.identifier === lookTouchId) lookTouchId = null;
+  };
+  renderer.domElement.addEventListener('touchend', releaseLookTouch);
+  renderer.domElement.addEventListener('touchcancel', releaseLookTouch);
+
+  // ---------- virtual joystick (movement) ----------
+  const JOY_RADIUS = 45;
+  let joyTouchId = null;
+  function joyUpdate(t) {
+    const rect = joystickBase.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    let dx = t.clientX - cx, dy = t.clientY - cy;
+    const dist = Math.hypot(dx, dy);
+    if (dist > JOY_RADIUS) { dx = dx / dist * JOY_RADIUS; dy = dy / dist * JOY_RADIUS; }
+    joystick.dx = dx / JOY_RADIUS; joystick.dy = dy / JOY_RADIUS;
+    joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+  }
+  function joyEnd(e) {
+    for (const t of e.changedTouches) {
+      if (t.identifier !== joyTouchId) continue;
+      joystick.active = false; joystick.dx = 0; joystick.dy = 0; joyTouchId = null;
+      joystickKnob.style.transform = 'translate(0px, 0px)';
+    }
+  }
+  joystickBase.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    joyTouchId = t.identifier;
+    joystick.active = true;
+    joyUpdate(t);
+  }, { passive: true });
+  joystickBase.addEventListener('touchmove', (e) => {
+    for (const t of e.changedTouches) if (t.identifier === joyTouchId) joyUpdate(t);
+  }, { passive: true });
+  joystickBase.addEventListener('touchend', joyEnd);
+  joystickBase.addEventListener('touchcancel', joyEnd);
+}
+function updateWalk(dt) {
+  if (mode !== 'walk') return;
+  if (IS_TOUCH) {
+    if (joystick.active) {
+      const step = WALK_SPEED * dt;
+      flyControls.moveForward(-joystick.dy * step);
+      flyControls.moveRight(joystick.dx * step);
+    }
+  } else if (flyControls.isLocked) {
+    const step = WALK_SPEED * dt;
+    if (keys.forward) flyControls.moveForward(step);
+    if (keys.backward) flyControls.moveForward(-step);
+    if (keys.right) flyControls.moveRight(step);
+    if (keys.left) flyControls.moveRight(-step);
+  }
+  camera.position.y = EYE_HEIGHT;
+  const r = Math.hypot(camera.position.x, camera.position.z);
+  if (r > GROUND_RADIUS - 2) {
+    const s = (GROUND_RADIUS - 2) / r;
+    camera.position.x *= s;
+    camera.position.z *= s;
+  }
+  if (r < WILLOW_ENTER_RADIUS) enterOrbitMode();
+}
+
+// ---------- camera tween (used for the walk <-> orbit handoff) ----------
+let camTween = null;
+function easeInOutCubic(x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
+function startCameraTween(endPos, endTarget, duration = 1100) {
+  camTween = { startPos: camera.position.clone(), endPos, startTarget: controls.target.clone(), endTarget, t0: performance.now(), duration };
+}
+
+function enterOrbitMode() {
+  if (mode === 'orbit') return;
+  mode = 'orbit';
+  flyControls.unlock();
+  lockPrompt.style.display = 'none';
+  controls.enabled = true;
+  hint.textContent = ORBIT_HINT;
+  leaveBtn.style.display = 'block';
+  joystickBase.style.display = 'none';
+  browseIndex = -1;
+  updateBrowseCount();
+  browseNav.style.display = 'flex';
+  const dir = camera.position.clone().setY(0);
+  if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
+  dir.normalize();
+  // step back from wherever we crossed the threshold to a framing that shows the whole tree,
+  // not just whatever's directly in front of us at the canopy's edge
+  startCameraTween(new THREE.Vector3(dir.x * 32, 11.5, dir.z * 32), new THREE.Vector3(0, 7, 0));
+}
+
+function exitOrbitMode() {
+  mode = 'walk';
+  controls.enabled = false;
+  hint.textContent = WALK_HINT;
+  leaveBtn.style.display = 'none';
+  browseNav.style.display = 'none';
+  tooltip.classList.remove('pinned');
+  setHover(null);
+  const dir = camera.position.clone().setY(0);
+  if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
+  dir.normalize().multiplyScalar(WILLOW_ENTER_RADIUS + 4);
+  camera.position.set(dir.x, EYE_HEIGHT, dir.z);
+  camera.lookAt(0, 4, 0);
+  if (IS_TOUCH) joystickBase.style.display = 'block';
+  else safeLock();
+}
+leaveBtn.addEventListener('click', exitOrbitMode);
+
+// ---------- browse nav: flick through every project without having to hunt for its lantern ----------
+const browseNav = document.getElementById('browseNav');
+const browseCount = document.getElementById('browseCount');
+let browseIndex = -1;
+
+function updateBrowseCount() {
+  browseCount.textContent = lanternHitObjects.length ? `${browseIndex + 1} / ${lanternHitObjects.length}` : '';
+}
+
+function flyToLantern(index) {
+  if (!lanternHitObjects.length) return;
+  browseIndex = ((index % lanternHitObjects.length) + lanternHitObjects.length) % lanternHitObjects.length;
+  updateBrowseCount();
+  const entry = lanternHitObjects[browseIndex];
+
+  const worldPos = new THREE.Vector3();
+  entry.hit.getWorldPosition(worldPos);
+  const dir = worldPos.clone().setY(0);
+  if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
+  dir.normalize();
+  const endPos = worldPos.clone().add(dir.multiplyScalar(2.8)).add(new THREE.Vector3(0, 0.7, 0));
+  startCameraTween(endPos, worldPos.clone(), 900);
+
+  hovered = null; // force setHover to re-apply even if this is the already-hovered lantern
+  setHover(entry);
+  tooltip.style.left = '';
+  tooltip.style.top = '';
+  tooltip.classList.add('pinned');
+}
+document.getElementById('browsePrev').addEventListener('click', () => flyToLantern(browseIndex - 1));
+document.getElementById('browseNext').addEventListener('click', () => flyToLantern(browseIndex + 1));
+
+// requestPointerLock() can throw synchronously in some contexts (rate-limited by rapid
+// repeat calls, embedded/non-top-level documents), not just fail via the async error event
+function safeLock() {
+  try { flyControls.lock(); } catch (e) { console.warn('Pointer lock unavailable:', e); }
+}
+
+// ---------- resize ----------
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+let elapsed = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  // note: Clock.getElapsedTime() itself calls getDelta() internally, so calling both
+  // per frame would starve one of them — track elapsed time manually off one getDelta() call
+  const dt = Math.min(clock.getDelta(), 0.1);
+  elapsed += dt;
+  const t = elapsed;
+
+  updateWalk(dt);
+
+  if (camTween) {
+    const p = Math.min((performance.now() - camTween.t0) / camTween.duration, 1);
+    const e = easeInOutCubic(p);
+    camera.position.lerpVectors(camTween.startPos, camTween.endPos, e);
+    controls.target.lerpVectors(camTween.startTarget, camTween.endTarget, e);
+    if (p >= 1) camTween = null;
+  } else if (mode === 'orbit') {
+    controls.update();
+  }
+
+  if (!REDUCED_MOTION) {
+    // irregular gust envelope (product of two slow, unrelated sine frequencies), 0..1 —
+    // drifts calm, then picks up, rather than a constant metronomic sway
+    const gust = 0.5 + 0.5 * Math.sin(t * 0.17) * Math.sin(t * 0.045 + 1.7);
+
+    // the canopy as a whole leans slightly with the gust; strand-level flutter rides on top
+    trunkGroup.rotation.z = gust * 0.035 + Math.sin(t * 0.09) * 0.006;
+    trunkGroup.rotation.x = gust * 0.018 + Math.cos(t * 0.07) * 0.004;
+
+    strandGroups.forEach(({ group, phase, amp }) => {
+      const windAmp = amp * (0.6 + gust * 1.3);
+      group.rotation.z = Math.sin(t * 0.6 + phase) * windAmp + gust * 0.02;
+      group.rotation.x = Math.cos(t * 0.5 + phase) * windAmp * 0.6;
+    });
+    swayTrees.forEach(({ group, phase, amp }) => {
+      group.rotation.z = gust * 0.022 * amp + Math.sin(t * 0.5 + phase) * 0.012 * amp;
+      group.rotation.x = gust * 0.012 * amp + Math.cos(t * 0.4 + phase) * 0.007 * amp;
+    });
+    lanternHitObjects.forEach((o, i) => {
+      const pulse = (0.85 + Math.sin(t * 1.6 + i) * 0.1) * palette.lanternGlow;
+      if (o !== hovered) o.glow.material.opacity = pulse;
+    });
+    const fp = fireflyGeo.attributes.position;
+    for (let i = 0; i < fireflyCount; i++) {
+      fp.array[i * 3 + 1] += Math.sin(t * 0.5 + i) * 0.0015;
+      fp.array[i * 3] += Math.cos(t * 0.3 + i) * 0.0012;
+    }
+    fp.needsUpdate = true;
+
+    birds.forEach((b) => {
+      const ang = t * b.speed * b.dir + b.phase;
+      b.sprite.position.set(Math.cos(ang) * b.radius, b.height + Math.sin(t * 0.4 + b.phase) * 1.2, Math.sin(ang) * b.radius);
+    });
+  }
+
+  if (composer) composer.render();
+  else renderer.render(scene, camera);
+}
+
+const loadingEl = document.getElementById('loading');
+window.__willowReady = true;
+loadingEl.style.opacity = '0';
+setTimeout(() => {
+  loadingEl.remove();
+  // only reveal the walking prompt once the loading overlay is fully gone — showing both
+  // at once, centered in the same spot, made them overlap into an unreadable jumble
+  if (mode === 'walk' && !IS_TOUCH && !flyControls.isLocked) lockPrompt.style.display = 'block';
+}, 650);
+animate();
+</script>
+</body>
+</html>
