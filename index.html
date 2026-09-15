@@ -1870,7 +1870,7 @@ const leafTexture = makeLeafTexture();
 // the leaf strands (not the trunk) by tinting the (otherwise white, i.e. untinted) sprite
 // colour towards turquoise, scaled by palette.fireflies so it's essentially untinted by day
 // and a faint cast once it's dark
-const leafTintColor = new THREE.Color(0xffffff).lerp(new THREE.Color(0x7fe8d8), palette.fireflies * 0.4);
+const leafTintColor = new THREE.Color(0xffffff).lerp(new THREE.Color(0x8ff5e0), palette.fireflies * 0.62);
 const leafMaterial = new THREE.SpriteMaterial({
   map: leafTexture, color: leafTintColor, transparent: true, depthWrite: false
 });
@@ -2058,9 +2058,24 @@ for (let i = 0; i < fireflyCount; i++) {
   fPos[i * 3 + 2] = z;
 }
 fireflyGeo.setAttribute('position', new THREE.BufferAttribute(fPos, 3));
+
+// a yellow-green (not the lantern orbs' warm amber) plus real per-particle flicker via a
+// vertex colour attribute, so fireflies read as small flitting insects rather than miniature,
+// static copies of the orb glow — a random phase per firefly, animated in the main loop
+const fireflyPhase = new Float32Array(fireflyCount);
+for (let i = 0; i < fireflyCount; i++) fireflyPhase[i] = Math.random() * Math.PI * 2;
+const fireflyBaseColor = new THREE.Color(0xc9f25a);
+const fColor = new Float32Array(fireflyCount * 3);
+for (let i = 0; i < fireflyCount; i++) {
+  fColor[i * 3] = fireflyBaseColor.r;
+  fColor[i * 3 + 1] = fireflyBaseColor.g;
+  fColor[i * 3 + 2] = fireflyBaseColor.b;
+}
+fireflyGeo.setAttribute('color', new THREE.BufferAttribute(fColor, 3));
+
 const fireflyMat = new THREE.PointsMaterial({
-  size: 0.16, map: glowTexture, transparent: true, depthWrite: false, fog: false,
-  blending: THREE.AdditiveBlending, color: 0xffd27a, opacity: palette.fireflies
+  size: 0.14, map: glowTexture, transparent: true, depthWrite: false, fog: false,
+  blending: THREE.AdditiveBlending, vertexColors: true, opacity: palette.fireflies
 });
 const fireflies = new THREE.Points(fireflyGeo, fireflyMat);
 scene.add(fireflies);
@@ -2416,11 +2431,19 @@ function animate() {
       if (o !== hovered) o.glow.material.opacity = pulse;
     });
     const fp = fireflyGeo.attributes.position;
+    const fc = fireflyGeo.attributes.color;
     for (let i = 0; i < fireflyCount; i++) {
       fp.array[i * 3 + 1] += Math.sin(t * 0.5 + i) * 0.0015;
       fp.array[i * 3] += Math.cos(t * 0.3 + i) * 0.0012;
+      // per-firefly flicker, each on its own phase — real fireflies pulse individually rather
+      // than glow at a constant brightness like the lantern orbs do
+      const flicker = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 2.4 + fireflyPhase[i]));
+      fc.array[i * 3] = fireflyBaseColor.r * flicker;
+      fc.array[i * 3 + 1] = fireflyBaseColor.g * flicker;
+      fc.array[i * 3 + 2] = fireflyBaseColor.b * flicker;
     }
     fp.needsUpdate = true;
+    fc.needsUpdate = true;
 
     birds.forEach((b) => {
       const ang = t * b.speed * b.dir + b.phase;
