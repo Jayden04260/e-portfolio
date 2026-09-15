@@ -1589,17 +1589,26 @@ scatterUnderstory(160, 35);
 // even just a few thousand scattered around the walkable clearing, read as real grass up
 // close in a way no amount of normal-map strength can.
 function makeGrassBladeGeometry() {
-  // a straight symmetric taper to a sharp point is exactly what reads as "a triangle" —
-  // leaning the blade to one side as it rises, and rounding the tip instead of a sharp point,
-  // breaks that up. Every instance shares this one geometry (InstancedMesh requires it) but
+  // a straight symmetric taper to a sharp point is exactly what reads as "a triangle" — this
+  // bulges wider near the base (like a real blade), narrows higher up via two curve segments
+  // per edge rather than one, leans to a side, and rounds off at the tip instead of coming to
+  // a sharp point. Every instance shares this one geometry (InstancedMesh requires it) but
   // each gets its own random rotation around Y, so the lean still ends up facing a different
   // world direction per blade
-  const h = 1, wBase = 0.5, lean = 0.22;
+  const h = 1, wBase = 0.5, lean = 0.24;
   const shape = new THREE.Shape();
   shape.moveTo(-wBase / 2, 0);
-  shape.quadraticCurveTo(-wBase * 0.18 + lean * 0.5, h * 0.6, lean * 0.85, h * 0.94);
-  shape.quadraticCurveTo(lean * 1.05, h, lean * 1.15, h * 0.95);
-  shape.quadraticCurveTo(wBase * 0.18 + lean * 0.5, h * 0.6, wBase / 2, 0);
+  shape.bezierCurveTo(
+    -wBase * 0.55, h * 0.22,
+    -wBase * 0.22 + lean * 0.35, h * 0.62,
+    lean * 0.55, h * 0.88
+  );
+  shape.quadraticCurveTo(lean * 0.95, h * 1.02, lean * 1.05, h * 0.9);
+  shape.bezierCurveTo(
+    wBase * 0.22 + lean * 0.35, h * 0.62,
+    wBase * 0.55, h * 0.22,
+    wBase / 2, 0
+  );
   shape.lineTo(-wBase / 2, 0);
   return new THREE.ShapeGeometry(shape);
 }
@@ -1611,7 +1620,7 @@ function scatterGrassBlades(count) {
   const m = new THREE.Matrix4();
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const dist = Math.sqrt(Math.random()) * (GROUND_RADIUS - 3); // sqrt(random) for even coverage by area, not bunched at the centre
+    const dist = Math.sqrt(Math.random()) * (VISUAL_GROUND_RADIUS - 3); // sqrt(random) for even coverage by area, not bunched at the centre — spans the whole visible ground, not just the walkable circle
     const x = Math.cos(angle) * dist, z = Math.sin(angle) * dist;
     const bladeH = (0.18 + Math.random() * 0.28) * 0.25; // 3/4 shorter than before
     const bladeW = 0.07 + Math.random() * 0.05;
@@ -1625,7 +1634,7 @@ function scatterGrassBlades(count) {
   mesh.instanceMatrix.needsUpdate = true;
   scene.add(mesh);
 }
-scatterGrassBlades(100000);
+scatterGrassBlades(450000);
 
 // ---------- near-distant forest: real trees a bit past the main grove, same as always ----------
 const NEAR_DISTANT_OUTER = 108;
