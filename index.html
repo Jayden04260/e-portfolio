@@ -977,15 +977,21 @@ document.getElementById('chooseForestBtn').addEventListener('click', () => {
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 // ?forceDesktop lets a hybrid touchscreen-laptop visitor opt into WASD/mouse controls
 // even though the browser reports touch support
-// matchMedia('(hover: none) and (pointer: coarse)') is what actually distinguishes a
-// touch-primary phone/tablet from a laptop that merely has a touchscreen — checking just
-// maxTouchPoints/ontouchstart falsely flagged touch-capable laptops as mobile. But some Samsung
-// phones (S-Pen hover support) report hover:hover even though the phone itself is touch-primary,
-// which that check alone misses and treats as a desktop — fall back to touch support combined
-// with a phone-sized viewport, since touch-capable laptops are rarely this narrow
+//
+// navigator.userAgentData.mobile (Chromium's User-Agent Client Hints) is the most reliable
+// signal where it exists: it reflects the actual device's form factor and, unlike the legacy
+// user-agent string or hover/pointer media features, isn't changed by "Request desktop site" —
+// exactly the case that was slipping through on some Samsung phones (Chrome/Samsung Internet)
+// and getting treated as a desktop even though the phone itself is touch-primary.
+// Where userAgentData isn't available (Safari, Firefox), fall back to the hover/pointer check —
+// that's what actually distinguishes a touch-primary phone/tablet from a laptop that merely has
+// a touchscreen, since checking just maxTouchPoints/ontouchstart falsely flagged touch-capable
+// laptops as mobile — with a touch+narrow-viewport check as a last-resort net under that.
 const IS_TOUCH = !location.search.includes('forceDesktop') && (
-  window.matchMedia('(hover: none) and (pointer: coarse)').matches
-  || (('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 900)
+  navigator.userAgentData
+    ? navigator.userAgentData.mobile
+    : (window.matchMedia('(hover: none) and (pointer: coarse)').matches
+       || (('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 900))
 );
 
 // ---------- time of day, matched to the visitor's own local clock ----------
