@@ -2194,8 +2194,8 @@ const pointerNDC = new THREE.Vector2();
 const tooltip = document.getElementById('tooltip');
 let hovered = null;
 
-function setHover(entry) {
-  if (hovered === entry) return;
+function setHover(entry, force) {
+  if (hovered === entry && !force) return;
   if (hovered) {
     hovered.glow.material.opacity = 0.85;
     hovered.glow.scale.set(hovered.baseScale, hovered.baseScale, 1);
@@ -2223,6 +2223,11 @@ function setHover(entry) {
 
 function onPointerMove(e) {
   if (mode !== 'orbit') return;
+  // while a project is pinned (selected via the Prev/Next arrows), leave it alone — the mouse
+  // passing near a different orb while looking around used to steal the hover and swap (or
+  // clear) the info box, which read as it randomly disappearing mid-browse. Only Prev/Next
+  // change the selection now; free hovering still works normally once nothing is pinned
+  if (tooltip.classList.contains('pinned')) return;
   const rect = renderer.domElement.getBoundingClientRect();
   pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -2231,11 +2236,10 @@ function onPointerMove(e) {
   const hits = raycaster.intersectObjects(lanternHitObjects.map(o => o.hit));
   if (hits.length) {
     const entry = lanternHitObjects.find(o => o.hit === hits[0].object);
-    tooltip.classList.remove('pinned'); // a real hover always takes over from browse-nav
     setHover(entry);
     tooltip.style.left = e.clientX + 'px';
     tooltip.style.top = e.clientY + 'px';
-  } else if (!tooltip.classList.contains('pinned')) {
+  } else {
     setHover(null);
   }
 }
@@ -2464,8 +2468,10 @@ function flyToLantern(index) {
   const endPos = worldPos.clone().add(dir.multiplyScalar(7)).add(new THREE.Vector3(0, 1.4, 0));
   startCameraTween(endPos, worldPos.clone(), 900);
 
-  hovered = null; // force setHover to re-apply even if this is the already-hovered lantern
-  setHover(entry);
+  // force setHover to re-apply even if this is the already-hovered lantern, but keep the
+  // previous entry reference (not hovered = null) so it still properly cleans up the old
+  // label/glow instead of leaving it stuck visible alongside the new one
+  setHover(entry, true);
   tooltip.style.left = '';
   tooltip.style.top = '';
   tooltip.classList.add('pinned');
